@@ -525,6 +525,44 @@ install(TARGETS onnx_test_runner
         LIBRARY  DESTINATION ${CMAKE_INSTALL_LIBDIR}
         RUNTIME  DESTINATION ${CMAKE_INSTALL_BINDIR})
 
+# Build automl_model_util protobuf
+if(onnxruntime_USE_AUTOML)
+  add_library(onnxruntime_automl_test_proto ${TEST_SRC_DIR}/proto/automl.proto)
+  if(WIN32)
+    target_compile_options(onnxruntime_automl_test_proto PRIVATE "/wd4125" "/wd4456")
+  else()
+    if(HAS_UNUSED_PARAMETER)
+      set_source_files_properties(${CMAKE_CURRENT_BINARY_DIR}/automl.pb.cc PROPERTIES COMPILE_FLAGS -Wno-unused-parameter)
+    endif()
+  endif()
+  add_dependencies(onnxruntime_automl_test_proto onnx_proto ${onnxruntime_EXTERNAL_DEPENDENCIES})  
+  onnxruntime_add_include_to_target(onnxruntime_automl_test_proto onnx_proto)
+  target_include_directories(onnxruntime_automl_test_proto PRIVATE ${CMAKE_CURRENT_BINARY_DIR} ${CMAKE_CURRENT_BINARY_DIR}/onnx)
+  set_target_properties(onnxruntime_automl_test_proto PROPERTIES FOLDER "ONNXRuntimeTest")
+  onnxruntime_protobuf_generate(APPEND_PATH IMPORT_DIRS ${ONNXRUNTIME_ROOT}/core/protobuf TARGET onnxruntime_automl_test_proto)
+
+  add_executable(onnxruntime_automl_util ${TEST_SRC_DIR}/automl_util/automl_model_util.cc)
+  set(automl_util_libs
+    libprotobuf
+    libprotobuf-lite
+    onnx
+    onnx_proto
+    onnxruntime_common
+    onnxruntime_framework
+    onnxruntime_graph
+    onnxruntime_mlas
+    onnxruntime_session
+    onnxruntime_util
+    onnxruntime_test_utils
+    gsl 
+    onnxruntime_automl_test_proto)
+  onnxruntime_add_include_to_target(onnxruntime_automl_util ${automl_util_libs})
+  add_dependencies(onnxruntime_automl_util ${onnxruntime_EXTERNAL_DEPENDENCIES} onnxruntime_test_utils ${ONNXRUNTIME_TEST_LIBS} onnxruntime_automl_test_proto)
+  target_include_directories(onnxruntime_automl_util PRIVATE ${CMAKE_CURRENT_BINARY_DIR} ${CMAKE_CURRENT_BINARY_DIR}/onnx ${ONNXRUNTIME_ROOT})
+  target_link_libraries(onnxruntime_automl_util PRIVATE ${automl_util_libs})
+  set_target_properties(onnxruntime_automl_util PROPERTIES FOLDER "ONNXRuntimeTest")
+endif()
+
 if(onnxruntime_BUILD_BENCHMARKS)
   add_executable(onnxruntime_benchmark ${TEST_SRC_DIR}/onnx/microbenchmark/main.cc ${TEST_SRC_DIR}/onnx/microbenchmark/modeltest.cc ${TEST_SRC_DIR}/onnx/microbenchmark/model_init.cc)
   target_include_directories(onnxruntime_benchmark PRIVATE ${ONNXRUNTIME_ROOT} ${onnxruntime_graph_header} benchmark)

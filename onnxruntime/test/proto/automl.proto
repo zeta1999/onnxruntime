@@ -1,0 +1,34 @@
+syntax = "proto3";
+
+import "onnx-ml.proto";
+
+package onnxruntime.automlproto;
+
+message TimePointProto {
+  uint32  year = 1;
+  uint32  month = 2;         // 1-12 
+  uint32  day = 3;           // 1-31
+  uint32  hour = 4;          // 0-23
+  uint32  minute = 5;        // 0-59
+  uint32  second = 6;        // 0-59
+  uint32  dayOfWeek = 7;     // 0-6
+  uint32 dayOfYear = 8;      // 0-365
+  uint32  quarterOfYear = 9; // 1-4
+  uint32  weekOfMonth = 10;  // 0-4
+}
+
+message AutoMLData {
+  oneof values {
+    onnx.TensorProto tensor = 1;
+    TimePointProto   time_point = 2;
+  }
+  // Optionally, a name for the tensor.
+  string name = 10;
+  string debug_info = 11;  //A human-readable string for helping debugging
+}
+
+message TestCaseConfig {
+  double per_sample_tolerance = 1;
+  double relative_per_sample_tolerance = 2;
+  bool post_processing = 3;
+}
