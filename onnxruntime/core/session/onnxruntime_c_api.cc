@@ -46,23 +46,6 @@ using namespace onnxruntime;
     if (_status) return _status;      \
   } while (0)
 
-struct OrtEnv {
- public:
-  Environment* value;
-  LoggingManager* loggingManager;
-
-  OrtEnv(Environment* value1, LoggingManager* loggingManager1) : value(value1), loggingManager(loggingManager1) {
-  }
-  /**
-   * This function will call ::google::protobuf::ShutdownProtobufLibrary
-   */
-  ~OrtEnv() {
-    delete loggingManager;
-    delete value;
-  }
-  ORT_DISALLOW_COPY_AND_ASSIGNMENT(OrtEnv);
-};
-
 #define TENSOR_READ_API_BEGIN                          \
   API_IMPL_BEGIN                                       \
   auto v = reinterpret_cast<const ::OrtValue*>(value); \
@@ -92,19 +75,19 @@ class LoggingWrapper : public ISink {
 };
 
 ORT_API_STATUS_IMPL(OrtApis::CreateEnvWithCustomLogger, OrtLoggingFunction logging_function,
-                    _In_opt_ void* logger_param, OrtLoggingLevel default_warning_level, _In_ const char* logid,
-                    _Outptr_ OrtEnv** out) {
+                    _In_opt_ void* logger_param, OrtLoggingLevel default_warning_level,
+                    _In_ const char* logid, _Outptr_ OrtEnv** out) {
   API_IMPL_BEGIN
   std::string name = logid;
   std::unique_ptr<ISink> logger = onnxruntime::make_unique<LoggingWrapper>(logging_function, logger_param);
-  auto default_logging_manager = onnxruntime::make_unique<LoggingManager>(std::move(logger),
-                                                                          static_cast<Severity>(default_warning_level), false,
-                                                                          LoggingManager::InstanceType::Default,
-                                                                          &name);
-  std::unique_ptr<Environment> env;
-  Status status = Environment::Create(env);
-  if (status.IsOK())
-    *out = new OrtEnv(env.release(), default_logging_manager.release());
+  auto logging_manager = onnxruntime::make_unique<LoggingManager>(std::move(logger),
+                                                                          static_cast<Severity>(default_warning_level), false);
+  std::unique_ptr<Environment> env = onnxruntime::make_unique<Environment>(std::move(logging_manager));
+  Status status = env->Initialize(name);
+  if (status.IsOK()) {
+    *out = reinterpret_cast<OrtEnv*>(env.release());
+    return nullptr;
+  }
   return ToOrtStatus(status);
   API_IMPL_END
 }
@@ -113,17 +96,14 @@ ORT_API_STATUS_IMPL(OrtApis::CreateEnv, OrtLoggingLevel default_warning_level,
                     _In_ const char* logid, _Outptr_ OrtEnv** out) {
   API_IMPL_BEGIN
   std::string name = logid;
-  auto default_logging_manager = onnxruntime::make_unique<LoggingManager>(std::unique_ptr<ISink>{new CLogSink{}},
-                                                                          static_cast<Severity>(default_warning_level), false,
-                                                                          LoggingManager::InstanceType::Default,
-                                                                          &name);
-  std::unique_ptr<Environment> env;
-  Status status = Environment::Create(env);
+  auto logging_manager = onnxruntime::make_unique<LoggingManager>(std::unique_ptr<ISink>{new CLogSink{}},
+                                                                          static_cast<Severity>(default_warning_level), false);
+  std::unique_ptr<Environment> env = onnxruntime::make_unique<Environment>(std::move(logging_manager));
+  Status status = env->Initialize(name);
   if (status.IsOK()) {
-    *out = new OrtEnv(env.release(), default_logging_manager.release());
+    *out = reinterpret_cast<OrtEnv*>(env.release());
     return nullptr;
   }
-  *out = nullptr;
   return ToOrtStatus(status);
   API_IMPL_END
 }
@@ -408,7 +388,7 @@ OrtStatus* CreateSessionImpl(_In_ const OrtEnv* env, _In_ const OrtSessionOption
     }
   }
   auto sess = onnxruntime::make_unique<::onnxruntime::InferenceSession>(
-      options == nullptr ? onnxruntime::SessionOptions() : options->value, env->loggingManager);
+    options == nullptr ? onnxruntime::SessionOptions() : options->value, nullptr);
   Status status;
   if (options != nullptr) {
     if (!options->custom_op_domains_.empty()) {
@@ -605,9 +585,12 @@ ORT_API_STATUS_IMPL(OrtApis::GetStringTensorContent, _In_ const OrtValue* value,
 
 using DefListResult = std::pair<Status, const InputDefList*>;
 using GetDefListFn = DefListResult (*)(const ::onnxruntime::InferenceSession*);
-const auto get_inputs_fn = [](const ::onnxruntime::InferenceSession* session) -> DefListResult { return session->GetModelInputs(); };
-const auto get_outputs_fn = [](const ::onnxruntime::InferenceSession* session) -> DefListResult { return session->GetModelOutputs(); };
-const auto get_overridable_initializers_fn = [](const ::onnxruntime::InferenceSession* session) -> DefListResult { return session->GetOverridableInitializers(); };
+const auto get_inputs_fn =
+  [](const ::onnxruntime::InferenceSession* session) -> DefListResult { return session->GetModelInputs(); };
+const auto get_outputs_fn =
+  [](const ::onnxruntime::InferenceSession* session) -> DefListResult { return session->GetModelOutputs(); };
+const auto get_overridable_initializers_fn =
+  [](const ::onnxruntime::InferenceSession* session) -> DefListResult { return session->GetOverridableInitializers(); };
 
 static OrtStatus* GetNodeDefListCountHelper(const OrtSession* sess, GetDefListFn get_fn, size_t* out) {
   API_IMPL_BEGIN
@@ -628,11 +611,16 @@ ORT_API_STATUS_IMPL(OrtApis::SessionGetOutputCount, _In_ const OrtSession* sess,
   return GetNodeDefListCountHelper(sess, get_outputs_fn, out);
 }
 
-ORT_API_STATUS_IMPL(OrtApis::SessionGetOverridableInitializerCount, _In_ const OrtSession* sess, _Out_ size_t* out) {
+ORT_API_STATUS_IMPL(OrtApis::SessionGetOverridableInitializerCount,
+                    _In_ const OrtSession* sess,
+                    _Out_ size_t* out) {
   return GetNodeDefListCountHelper(sess, get_overridable_initializers_fn, out);
 }
 
-static OrtStatus* GetNodeDefTypeInfoHelper(const OrtSession* sess, GetDefListFn get_fn, size_t index, _Outptr_ struct OrtTypeInfo** out) {
+static OrtStatus* GetNodeDefTypeInfoHelper(const OrtSession* sess,
+                                           GetDefListFn get_fn,
+                                           size_t index,
+                                           _Outptr_ struct OrtTypeInfo** out) {
   API_IMPL_BEGIN
   auto session = reinterpret_cast<const ::onnxruntime::InferenceSession*>(sess);
   std::pair<Status, const InputDefList*> p = get_fn(session);
@@ -645,15 +633,24 @@ static OrtStatus* GetNodeDefTypeInfoHelper(const OrtSession* sess, GetDefListFn 
   API_IMPL_END
 }
 
-ORT_API_STATUS_IMPL(OrtApis::SessionGetInputTypeInfo, _In_ const OrtSession* sess, size_t index, _Outptr_ struct OrtTypeInfo** out) {
+ORT_API_STATUS_IMPL(OrtApis::SessionGetInputTypeInfo,
+                    _In_ const OrtSession* sess,
+                    size_t index,
+                    _Outptr_ struct OrtTypeInfo** out) {
   return GetNodeDefTypeInfoHelper(sess, get_inputs_fn, index, out);
 }
 
-ORT_API_STATUS_IMPL(OrtApis::SessionGetOutputTypeInfo, _In_ const OrtSession* sess, size_t index, _Outptr_ struct OrtTypeInfo** out) {
+ORT_API_STATUS_IMPL(OrtApis::SessionGetOutputTypeInfo,
+                    _In_ const OrtSession* sess,
+                    size_t index,
+                    _Outptr_ struct OrtTypeInfo** out) {
   return GetNodeDefTypeInfoHelper(sess, get_outputs_fn, index, out);
 }
 
-ORT_API_STATUS_IMPL(OrtApis::SessionGetOverridableInitializerTypeInfo, _In_ const OrtSession* sess, size_t index, _Outptr_ struct OrtTypeInfo** out) {
+ORT_API_STATUS_IMPL(OrtApis::SessionGetOverridableInitializerTypeInfo,
+                    _In_ const OrtSession* sess,
+                    size_t index, _Outptr_
+                    struct OrtTypeInfo** out) {
   return GetNodeDefTypeInfoHelper(sess, get_overridable_initializers_fn, index, out);
 }
 
@@ -715,7 +712,9 @@ ORT_API_STATUS_IMPL(OrtApis::AllocatorFree, _Inout_ OrtAllocator* ptr, void* p) 
   API_IMPL_END
 }
 
-ORT_API_STATUS_IMPL(OrtApis::AllocatorGetInfo, _In_ const OrtAllocator* ptr, _Outptr_ const struct OrtMemoryInfo** out) {
+ORT_API_STATUS_IMPL(OrtApis::AllocatorGetInfo,
+                    _In_ const OrtAllocator* ptr,
+                    _Outptr_ const struct OrtMemoryInfo** out) {
   API_IMPL_BEGIN
   *out = ptr->Info(ptr);
   return nullptr;
@@ -1410,7 +1409,7 @@ const OrtApiBase* ORT_API_CALL OrtGetApiBase() NO_EXCEPTION {
   return &ort_api_base;
 }
 
-DEFINE_RELEASE_ORT_OBJECT_FUNCTION(Env, OrtEnv)
+DEFINE_RELEASE_ORT_OBJECT_FUNCTION(Env, ::onnxruntime::Environment)
 DEFINE_RELEASE_ORT_OBJECT_FUNCTION(Value, OrtValue)
 DEFINE_RELEASE_ORT_OBJECT_FUNCTION(RunOptions, OrtRunOptions)
 DEFINE_RELEASE_ORT_OBJECT_FUNCTION(Session, ::onnxruntime::InferenceSession)
