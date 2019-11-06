@@ -365,7 +365,7 @@ ORT_API_STATUS_IMPL(OrtApis::RegisterCustomOpsLibrary, _Inout_ OrtSessionOptions
 
 namespace {
 template <typename Loader>
-OrtStatus* CreateSessionImpl(_In_ const OrtEnv* env, _In_ const OrtSessionOptions* options,
+OrtStatus* CreateSessionImpl(_In_ const OrtSessionOptions* options,
                              Loader loader, _Outptr_ OrtSession** out) {
   // we need to disable mem pattern if DML is one of the providers since DML doesn't have the concept of
   // byte addressable memory
@@ -401,7 +401,9 @@ OrtStatus* CreateSessionImpl(_In_ const OrtEnv* env, _In_ const OrtSessionOption
   // register the providers
   for (auto& provider : provider_list) {
     if (provider) {
-      sess->RegisterExecutionProvider(std::move(provider));
+      status = sess->RegisterExecutionProvider(std::move(provider));
+	  if (!status.IsOK())
+        return ToOrtStatus(status);
     }
   }
 
@@ -416,23 +418,23 @@ OrtStatus* CreateSessionImpl(_In_ const OrtEnv* env, _In_ const OrtSessionOption
 }
 }  // namespace
 
-ORT_API_STATUS_IMPL(OrtApis::CreateSession, _In_ const OrtEnv* env, _In_ const ORTCHAR_T* model_path,
+ORT_API_STATUS_IMPL(OrtApis::CreateSession, _In_ const OrtEnv* , _In_ const ORTCHAR_T* model_path,
                     _In_ const OrtSessionOptions* options, _Outptr_ OrtSession** out) {
   API_IMPL_BEGIN
   const auto loader = [model_path](InferenceSession& sess) {
     return sess.Load(model_path);
   };
-  return CreateSessionImpl(env, options, loader, out);
+  return CreateSessionImpl(options, loader, out);
   API_IMPL_END
 }
 
-ORT_API_STATUS_IMPL(OrtApis::CreateSessionFromArray, _In_ const OrtEnv* env, _In_ const void* model_data, size_t model_data_length,
+ORT_API_STATUS_IMPL(OrtApis::CreateSessionFromArray, _In_ const OrtEnv*, _In_ const void* model_data, size_t model_data_length,
                     _In_ const OrtSessionOptions* options, _Outptr_ OrtSession** out) {
   API_IMPL_BEGIN
   const auto loader = [model_data, model_data_length](InferenceSession& sess) {
     return sess.Load(model_data, static_cast<int>(model_data_length));
   };
-  return CreateSessionImpl(env, options, loader, out);
+  return CreateSessionImpl(options, loader, out);
   API_IMPL_END
 }
 
