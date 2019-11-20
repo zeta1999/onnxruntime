@@ -48,6 +48,10 @@ elif [ $BUILD_OS = "centos7" ]; then
     IMAGE="centos7"
     DOCKER_FILE=Dockerfile.centos
     docker build -t "onnxruntime-$IMAGE" --build-arg BUILD_USER=onnxruntimedev --build-arg BUILD_UID=$(id -u) --build-arg PYTHON_VERSION=${PYTHON_VER} -f $DOCKER_FILE .
+elif [ $BUILD_OS = "yocto" ]; then
+    IMAGE="arm-yocto"
+    DOCKER_FILE=Dockerfile.ubuntu_for_arm
+    docker build -t "onnxruntime-$IMAGE" --build-arg BUILD_USER=onnxruntimedev --build-arg BUILD_UID=$(id -u) --build-arg PYTHON_VERSION=${PYTHON_VER} -f $DOCKER_FILE .
 else
     if [ $BUILD_DEVICE = "gpu" ]; then
         IMAGE="$BUILD_OS-$CUDA_VER"
@@ -84,7 +88,7 @@ if [ -z "$NIGHTLY_BUILD" ]; then
     set NIGHTLY_BUILD=0
 fi
 
-if [ $BUILD_DEVICE = "cpu" ] || [ $BUILD_DEVICE = "ngraph" ] || [ $BUILD_DEVICE = "openvino" ] || [ $BUILD_DEVICE = "nnapi" ]; then
+if [ $BUILD_DEVICE = "cpu" ] || [ $BUILD_DEVICE = "ngraph" ] || [ $BUILD_DEVICE = "openvino" ] || [ $BUILD_DEVICE = "nnapi" ] || [ $BUILD_DEVICE = "arm" ]; then
     RUNTIME=
 else
     RUNTIME="--gpus all"
