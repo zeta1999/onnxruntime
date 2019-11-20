@@ -29,7 +29,7 @@ PACKAGECONFIG_remove_pn-arm-compute-library = "opencl"
 
 TOOLCHAIN_HOST_TASK_append = " nativesdk-cmake nativesdk-make"
 
-IMAGE_INSTALL_append = " arm-compute-library"
+IMAGE_INSTALL_append = " arm-compute-library armnn"
 PREFERRED_VERSION_opencv = "4.0.1%"
 EOT
 
