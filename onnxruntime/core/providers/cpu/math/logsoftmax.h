@@ -11,9 +11,9 @@
 
 namespace onnxruntime {
 template <typename T>
-class Softmax final : public OpKernel {
+class LogSoftmax final : public OpKernel {
  public:
-  Softmax(const OpKernelInfo& info) : OpKernel{info}, axis_{1} {
+  LogSoftmax(const OpKernelInfo& info) : OpKernel{info}, axis_{1} {
     int64_t axis;
     Status status = info.GetAttr<int64_t>("axis", &axis);
 
