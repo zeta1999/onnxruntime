@@ -33,7 +33,7 @@ Status Concat::ComputeInternal(OpKernelContext* ctx) const {
     input_tensors.push_back(ctx->Input<Tensor>(i));
   }
 
-  Prepare p;
+  ConcatBase::Prepare p;
   ORT_RETURN_IF_ERROR(PrepareForCompute(ctx, input_tensors, p));
 
   // Return at this point if output tensor is going to be empty

@@ -10,7 +10,7 @@ namespace cuda {
 ONNX_OPERATOR_VERSIONED_KERNEL_EX(
     TopK,
     kOnnxDomain,
-    1,9,
+    1, 9,
     kCudaExecutionProvider,
     KernelDefBuilder().TypeConstraint("T", DataTypeImpl::AllFixedSizeTensorTypes()),
     TopK<false>);
@@ -18,7 +18,7 @@ ONNX_OPERATOR_VERSIONED_KERNEL_EX(
 ONNX_OPERATOR_VERSIONED_KERNEL_EX(
     TopK,
     kOnnxDomain,
-    10,10,
+    10, 10,
     kCudaExecutionProvider,
     KernelDefBuilder().InputMemoryType<OrtMemTypeCPUInput>(1).TypeConstraint("T", DataTypeImpl::AllFixedSizeTensorTypes()),
     TopK<true>);
@@ -64,9 +64,13 @@ Status TopK<inputk>::ComputeInternal(OpKernelContext* ctx) const {
     ORT_ENFORCE(K_ >= 0 && K_ <= tensor_X->Shape().GetDims()[axis]);
   }
 
+  std::cout << "TopK input_X=" << tensor_X->DataRaw() << "\n";
+
   auto output_shape = tensor_X->Shape();
   output_shape[axis] = K_;
+  std::cout << "output 0\n";
   auto tensor_V = ctx->Output(0, output_shape);
+  std::cout << "output 1\n";
   auto tensor_I = ctx->Output(1, output_shape);
 
   if (0 == K_) {
@@ -79,7 +83,7 @@ Status TopK<inputk>::ComputeInternal(OpKernelContext* ctx) const {
     elem_nums[i] *= elem_nums[i + 1];
   }
 
-  auto N = elem_nums[0] / dimension;
+  auto N = tensor_X->Shape().Size() / dimension;
   CudaAsyncBuffer<int64_t> elem_nums_cuda(this, elem_nums);
   ORT_RETURN_IF_ERROR(elem_nums_cuda.CopyToGpu());
 
@@ -88,18 +92,35 @@ Status TopK<inputk>::ComputeInternal(OpKernelContext* ctx) const {
     return ORT_MAKE_STATUS(ONNXRUNTIME, FAIL, "Type not supported for TopK operator");
   }
 
-  if (IS_PRIM_TYPE(uint8_t)) return TOPKIMPL(uint8_t);
-  if (IS_PRIM_TYPE(uint16_t)) return TOPKIMPL(uint16_t);
-  if (IS_PRIM_TYPE(uint32_t)) return TOPKIMPL(uint32_t);
-  if (IS_PRIM_TYPE(uint64_t)) return TOPKIMPL(uint64_t);
-  if (IS_PRIM_TYPE(int8_t)) return TOPKIMPL(int8_t);
-  if (IS_PRIM_TYPE(int16_t)) return TOPKIMPL(int16_t);
-  if (IS_PRIM_TYPE(int32_t)) return TOPKIMPL(int32_t);
-  if (IS_PRIM_TYPE(int64_t)) return TOPKIMPL(int64_t);
-  if (IS_PRIM_TYPE(float)) return TOPKIMPL(float);
-  if (IS_PRIM_TYPE(double)) return TOPKIMPL(double);
-  if (IS_PRIM_TYPE(uint8_t)) return TOPKIMPL(uint8_t);
-  return ORT_MAKE_STATUS(ONNXRUNTIME, FAIL, "Type not supported for TopK operator");
+  Status status;
+  if (IS_PRIM_TYPE(uint8_t))
+    status = TOPKIMPL(uint8_t);
+  else if (IS_PRIM_TYPE(uint16_t))
+    status = TOPKIMPL(uint16_t);
+  else if (IS_PRIM_TYPE(uint32_t))
+    status = TOPKIMPL(uint32_t);
+  else if (IS_PRIM_TYPE(uint64_t))
+    status = TOPKIMPL(uint64_t);
+  else if (IS_PRIM_TYPE(int8_t))
+    status = TOPKIMPL(int8_t);
+  else if (IS_PRIM_TYPE(int16_t))
+    status = TOPKIMPL(int16_t);
+  else if (IS_PRIM_TYPE(int32_t))
+    status = TOPKIMPL(int32_t);
+  else if (IS_PRIM_TYPE(int64_t))
+    status = TOPKIMPL(int64_t);
+  else if (IS_PRIM_TYPE(float))
+    status = TOPKIMPL(float);
+  else if (IS_PRIM_TYPE(double))
+    status = TOPKIMPL(double);
+  else if (IS_PRIM_TYPE(uint8_t))
+    status = TOPKIMPL(uint8_t);
+  else
+    return ORT_MAKE_STATUS(ONNXRUNTIME, FAIL, "Type not supported for TopK operator");
+
+  std::cout << "Freeing elem_nums_cuda gpu_ptr=" << elem_nums_cuda.GpuPtr() << "\n";
+
+  return status;
 }
 
 }  // namespace cuda

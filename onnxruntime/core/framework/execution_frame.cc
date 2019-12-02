@@ -276,6 +276,8 @@ Status ExecutionFrame::AllocateMLValueTensorSelfOwnBufferHelper(OrtValue& ort_va
         // if the block is not correct, log message then fall back to default behavior
         if (it != buffers_.end() && block->size_ == size) {
           void* buffer = it->second.get();
+          std::cout << "Buffer from mem pattern block=" << buffer << " offset=" << block->offset_ << " size=" << size
+                    << " p=" << static_cast<void*>(static_cast<char*>(buffer) + block->offset_) << "\n";
           auto status = AllocateTensorWithPreAllocateBufferHelper(
               ort_value, static_cast<void*>(static_cast<char*>(buffer) + block->offset_), element_type, location,
               shape);

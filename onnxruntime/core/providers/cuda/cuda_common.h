@@ -64,6 +64,7 @@ class CudaKernel : public OpKernel {
   }
 
   inline void AddDeferredReleaseCPUPtr(void* p) const {
+    std::cout << "AddDeferredReleaseCPUPtr:" << p << "\n";
     provider_->AddDeferredReleaseCPUPtr(p);
   }
 

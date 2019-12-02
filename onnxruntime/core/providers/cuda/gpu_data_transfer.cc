@@ -18,8 +18,7 @@ GPUDataTransfer::~GPUDataTransfer() {
 }
 
 bool GPUDataTransfer::CanCopy(const OrtDevice& src_device, const OrtDevice& dst_device) const {
-  return src_device.Type() == OrtDevice::GPU || src_device.MemType() == OrtDevice::MemType::CUDA_PINNED
-         || dst_device.Type() == OrtDevice::GPU || dst_device.MemType() == OrtDevice::MemType::CUDA_PINNED;
+  return src_device.Type() == OrtDevice::GPU || src_device.MemType() == OrtDevice::MemType::CUDA_PINNED || dst_device.Type() == OrtDevice::GPU || dst_device.MemType() == OrtDevice::MemType::CUDA_PINNED;
 }
 
 common::Status GPUDataTransfer::CopyTensor(const Tensor& src, Tensor& dst, int exec_queue_id) const {
@@ -39,6 +38,7 @@ common::Status GPUDataTransfer::CopyTensor(const Tensor& src, Tensor& dst, int e
       CUDA_RETURN_IF_ERROR(cudaMemcpyAsync(dst_data, src_data, bytes, cudaMemcpyDeviceToDevice, streams_[kCudaStreamDefault]));
     } else {
       // copy from other CPU memory to GPU, this is blocking
+      std::cout << "HostToDevice " << src_data << " -> " << dst_data << "\n";
       CUDA_RETURN_IF_ERROR(cudaMemcpy(dst_data, src_data, bytes, cudaMemcpyHostToDevice));
     }
   } else if (src_device.Type() == OrtDevice::GPU) {
@@ -47,12 +47,15 @@ common::Status GPUDataTransfer::CopyTensor(const Tensor& src, Tensor& dst, int e
       CUDA_RETURN_IF_ERROR(cudaMemcpyAsync(dst_data, src_data, bytes, cudaMemcpyDeviceToHost, streams_[exec_queue_id]));
     } else {
       // copying from GPU to CPU memory, this is blocking
+      std::cout << "DeviceToHost " << src_data << " -> " << dst_data << "\n";
       CUDA_RETURN_IF_ERROR(cudaMemcpy(dst_data, src_data, bytes, cudaMemcpyDeviceToHost));
     }
   } else {
     // copying between cpu memory
     memcpy(dst_data, src_data, bytes);
   }
+
+  CUDA_CALL_THROW(cudaDeviceSynchronize());
 
   return Status::OK();
 }

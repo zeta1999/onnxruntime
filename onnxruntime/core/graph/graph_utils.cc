@@ -508,7 +508,10 @@ bool IsInitializer(const Graph& graph, const std::string& name, bool check_outer
   if (graph.GetInitializedTensor(name, initializer)) {
     is_initializer = true;
   } else if (check_outer_scope && graph.IsSubgraph() && graph.IsOuterScopeValue(name)) {
-    is_initializer = IsInitializer(*graph.ParentGraph(), name, check_outer_scope);
+    // make sure there's not a local value with the same name. if there is it shadows any initializer in outer scope.
+    if (graph.IsOuterScopeValue(name)) {
+      is_initializer = IsInitializer(*graph.ParentGraph(), name, check_outer_scope);
+    }
   }
 
   return is_initializer;
@@ -704,7 +707,7 @@ bool FindPath(const Node& node, bool is_input_edge, const std::vector<EdgeEndToM
     const Node::EdgeEnd* edge_found = nullptr;
 #ifndef NDEBUG
     LOGS(logger, VERBOSE) << (is_input_edge ? "I:" : "O:") << edge.src_arg_index << "," << edge.dst_arg_index
-                           << "," << edge.op_type << "," << edge.domain << "," << ToString(edge.versions);
+                          << "," << edge.op_type << "," << edge.domain << "," << ToString(edge.versions);
 #endif
     auto edges_begin = is_input_edge ? current_node->InputEdgesBegin() : current_node->OutputEdgesBegin();
     auto edges_end = is_input_edge ? current_node->InputEdgesEnd() : current_node->OutputEdgesEnd();

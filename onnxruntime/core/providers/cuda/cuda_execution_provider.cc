@@ -98,8 +98,10 @@ CUDAExecutionProvider::~CUDAExecutionProvider() {
     if (v.recorded)
       CUDA_CALL_THROW(cudaEventSynchronize(e));
     for (auto p : v.cpu_ptrs) {
+      std::cout << "cpu_alloc->Free " << p << "\n";
       cpu_alloc->Free(p);
     }
+
     CUDA_CALL_THROW(cudaEventDestroy(e));
     it = deferred_release_cpu_ptr_.erase(it);
   }

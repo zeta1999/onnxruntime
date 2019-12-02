@@ -34,6 +34,8 @@ Status Softmax<T>::ComputeInternal(OpKernelContext* ctx) const {
   const TensorShape& input_shape{X.Shape()};
 
   Tensor* Y = ctx->Output(0, input_shape);
+  std::cout << "output 0 p=" << Y->DataRaw() << "\n";
+
   // special case when there is a dim value of 0 in the shape.
   if (input_shape.Size() == 0)
     return Status::OK();
@@ -54,6 +56,7 @@ Status Softmax<T>::ComputeInternal(OpKernelContext* ctx) const {
   ORT_RETURN_IF_ERROR(input_tensor.Set(dims, CudnnTensor::GetDataType<CudaT>()));
   ORT_RETURN_IF_ERROR(output_tensor.Set(dims, CudnnTensor::GetDataType<CudaT>()));
   CUDNN_RETURN_IF_ERROR(cudnnSoftmaxForward(CudnnHandle(), CUDNN_SOFTMAX_ACCURATE, CUDNN_SOFTMAX_MODE_INSTANCE, &alpha, input_tensor, x_data, &beta, output_tensor, y_data));
+  CUDA_CALL_THROW(cudaDeviceSynchronize());
 
   return Status::OK();
 }

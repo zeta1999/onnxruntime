@@ -38,10 +38,14 @@ void* CUDAAllocator::Alloc(size_t size) {
   if (size > 0) {
     CUDA_CALL_THROW(cudaMalloc((void**)&p, size));
   }
+  std::cout << "cudaMalloc:" << p << "\n";
+
   return p;
 }
 
 void CUDAAllocator::Free(void* p) {
+  std::cout << "cudaFree:" << p << "\n";
+
   CheckDevice(false);  // ignore CUDA failure when free
   cudaFree(p);         // do not throw error since it's OK for cudaFree to fail during shutdown
 }
@@ -59,10 +63,14 @@ void* CUDAPinnedAllocator::Alloc(size_t size) {
   if (size > 0) {
     CUDA_CALL_THROW(cudaMallocHost((void**)&p, size));
   }
+  std::cout << "cudaMallocHost:" << p << "\n";
+
   return p;
 }
 
 void CUDAPinnedAllocator::Free(void* p) {
+  std::cout << "cudaFreeHost:" << p << "\n";
+
   CUDA_CALL_THROW(cudaFreeHost(p));
 }
 

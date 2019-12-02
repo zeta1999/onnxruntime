@@ -339,5 +339,101 @@ TEST(If, Opset11ThenAndElseBranchesProduceDifferentOutputShapes) {
   RunTest(false, options, false, OpTester::ExpectResult::kExpectSuccess, "", 11);
 }
 
+class IfOpStringTester : public OpTester {
+ public:
+  IfOpStringTester(int opset_version = 11) : OpTester("If", opset_version) {
+  }
+
+ protected:
+  void AddNodes(onnxruntime::Graph& graph,
+                std::vector<onnxruntime::NodeArg*>& graph_input_defs,
+                std::vector<onnxruntime::NodeArg*>& graph_output_defs,
+                std::vector<std::function<void(onnxruntime::Node& node)>>& /*add_attribute_funcs*/) override {
+    ASSERT_EQ(graph_input_defs.size(), 2);
+    ASSERT_EQ(graph_output_defs.size(), 1);
+
+    NodeArg* string_input = graph_input_defs[0];
+    NodeArg* if_cond_input = graph_input_defs[1];
+
+    std::vector<NodeArg*> inputs;
+    std::vector<NodeArg*> outputs;
+
+    // add If node
+    {
+      inputs = {if_cond_input};
+      outputs = {graph_output_defs[0]};
+
+      auto& if_node = graph.AddNode("if", "If", "If node", inputs, outputs);
+
+      auto then_proto = CreateSubgraph(true);
+      auto else_proto = CreateSubgraph(false);
+      if_node.AddAttribute("then_branch", then_proto);
+      if_node.AddAttribute("else_branch", else_proto);
+    }
+
+    {
+      inputs = {string_input};
+      outputs = {&graph.GetOrCreateNodeArg("concat_input", string_input->TypeAsProto())};
+      graph.AddNode("identity", "Identity", "Pass string input through from graph inputs.", inputs, outputs);
+    }
+  }
+
+ private:
+  ONNX_NAMESPACE::GraphProto CreateSubgraph(bool then_branch) {
+    Model model(then_branch ? "If_then" : "If_else", false, DefaultLoggingManager().DefaultLogger());
+    auto& graph = model.MainGraph();
+
+    std::vector<NodeArg*> inputs;
+    std::vector<NodeArg*> outputs;
+
+    TypeProto input_tensor_type;
+    input_tensor_type.mutable_tensor_type()->set_elem_type(TensorProto_DataType_STRING);
+    auto* mutable_dim = input_tensor_type.mutable_tensor_type()->mutable_shape()->add_dim();
+    mutable_dim->set_dim_value(1);
+
+    // outer scope values
+    auto& concat_input = graph.GetOrCreateNodeArg("concat_input", &input_tensor_type);
+    graph.AddOuterScopeNodeArg("concat_input");
+
+    TensorProto const_string;
+    *const_string.add_string_data() = "const";
+    const_string.add_dims(1);
+    const_string.set_name("const_string");
+    const_string.set_data_type(TensorProto_DataType_STRING);
+
+    graph.AddInitializedTensor(const_string);
+
+    {
+      // graph output has to have type and shape
+      TypeProto concat_output;
+      concat_output.mutable_tensor_type()->set_elem_type(TensorProto_DataType_STRING);
+      concat_output.mutable_tensor_type()->mutable_shape()->add_dim()->set_dim_value(2);
+
+      auto& concat_out = graph.GetOrCreateNodeArg("concat_out", &concat_output);
+
+      inputs = {graph.GetNodeArg("const_string"), &concat_input};
+      outputs = {&concat_out};
+
+      auto& concat = graph.AddNode("concat", "Concat", "Concat two strings.", inputs, outputs);
+      concat.AddAttribute("axis", int64_t(0));
+    }
+
+    auto status = graph.Resolve();
+    EXPECT_EQ(status, Status::OK());
+
+    auto& proto = graph.ToGraphProto();
+
+    return proto;
+  };
+};
+
+TEST(If, StringOutput) {
+  IfOpStringTester test;
+
+  test.AddInput<std::string>("string_input", {1}, {"input"});
+  test.AddInput<bool>("if_cond", {1}, {true});
+  test.AddOutput<std::string>("if_out", {2}, {"const", "input"});
+  test.Run();
+}
 }  // namespace test
 }  // namespace onnxruntime

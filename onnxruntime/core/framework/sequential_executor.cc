@@ -92,6 +92,7 @@ Status SequentialExecutor::Execute(const SessionState& session_state, const std:
 
     auto node_index = node_exec_plan.node_index;
     const auto& node = *graph_viewer->GetNode(node_exec_plan.node_index);
+    std::cout << "Node=" << node.OpType() << "\n";
 
 #ifdef CONCURRENCY_VISUALIZER
     series.write_flag(node.Name().c_str());
@@ -229,7 +230,7 @@ Status SequentialExecutor::Execute(const SessionState& session_state, const std:
     elapsed.QuadPart /= perf_freq.QuadPart;
     // Log an event
     TraceLoggingWrite(telemetry_provider_handle,  // handle to my provider
-                      "OpEnd",       // Event Name that should uniquely identify your event.
+                      "OpEnd",                    // Event Name that should uniquely identify your event.
                       TraceLoggingValue(p_op_kernel->KernelDef().OpName().c_str(), "op_name"),
                       TraceLoggingValue(elapsed.QuadPart, "time"));
 #endif

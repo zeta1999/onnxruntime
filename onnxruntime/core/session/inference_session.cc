@@ -633,7 +633,7 @@ common::Status InferenceSession::Initialize() {
     // handle any subgraphs
     ORT_RETURN_IF_ERROR_SESSIONID_(InitializeSubgraphSessions(graph, session_state_));
     is_inited_ = true;
-    
+
     // and log telemetry
     const Env& env = Env::Default();
     env.GetTelemetryProvider().LogSessionCreation(session_id_, model_->IrVersion(), model_->ProducerName(), model_->ProducerVersion(),
@@ -832,6 +832,7 @@ Status InferenceSession::Run(const RunOptions& run_options, const std::vector<st
     }
 
     // execute the graph
+    std::cout << "ExecuteGraph\n";
     ORT_CHECK_AND_SET_RETVAL(
         utils::ExecuteGraph(session_state_, feeds_fetches_manager, feeds, *p_fetches,
                             session_options_.execution_mode,
@@ -1151,7 +1152,6 @@ void InferenceSession::AddPredefinedTransformers(GraphTransformerManager& transf
       add_transformers(level);
     }
   }
-
 }
 
 common::Status InferenceSession::WaitForNotification(Notification* p_executor_done, int64_t timeout_in_ms) {

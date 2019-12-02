@@ -2,6 +2,7 @@
 // Licensed under the MIT License.
 
 #include "core/framework/bfc_arena.h"
+#include <iostream>
 
 namespace onnxruntime {
 BFCArena::BFCArena(std::unique_ptr<IDeviceAllocator> resource_allocator,
@@ -11,6 +12,8 @@ BFCArena::BFCArena(std::unique_ptr<IDeviceAllocator> resource_allocator,
       next_allocation_id_(1),
       info_(device_allocator_->Info().name, OrtAllocatorType::OrtArenaAllocator, device_allocator_->Info().device, device_allocator_->Info().id, device_allocator_->Info().mem_type) {
   curr_region_allocation_bytes_ = RoundedBytes(std::min(total_memory, size_t{1048576}));
+
+  std::cout << "Create BFCArena for " << device_allocator_->Info().name << " size:" << total_memory << "\n";
 
   // Allocate the requested amount of memory.
   memory_limit_ = total_memory;
@@ -22,8 +25,8 @@ BFCArena::BFCArena(std::unique_ptr<IDeviceAllocator> resource_allocator,
   // allocations up to (and including) the memory limit.
   for (BinNum b = 0; b < kNumBins; b++) {
     size_t bin_size = BinNumToSize(b);
-    LOGS_DEFAULT(INFO) << "Creating bin of max chunk size "
-                       << bin_size;
+    LOGS_DEFAULT(VERBOSE) << "Creating bin of max chunk size "
+                          << bin_size;
     new (BinFromIndex(b)) Bin(this, bin_size);
     ORT_ENFORCE(BinForSize(bin_size) == BinFromIndex(b));
     ORT_ENFORCE(BinForSize(bin_size + 255) == BinFromIndex(b));
@@ -35,6 +38,8 @@ BFCArena::BFCArena(std::unique_ptr<IDeviceAllocator> resource_allocator,
 }
 
 BFCArena::~BFCArena() {
+  std::cout << "BFCArena::~BFCArena allocator=" << device_allocator_->Info().name << "\n";
+
   for (const auto& region : region_manager_.regions()) {
     device_allocator_->Free(region.ptr());
   }
@@ -54,6 +59,7 @@ BFCArena::Chunk* BFCArena::ChunkFromHandle(ChunkHandle h) {
 }
 
 bool BFCArena::Extend(size_t rounded_bytes) {
+  std::cout << "BFCArena::Extend byte=" << rounded_bytes << " allocator=" << device_allocator_->Info().name << "\n";
   size_t available_bytes = memory_limit_ - stats_.total_allocated_bytes;
   // Rounds available_bytes down to the nearest multiple of kMinAllocationSize.
   available_bytes = (available_bytes / kMinAllocationSize) * kMinAllocationSize;
@@ -172,10 +178,13 @@ size_t BFCArena::RoundedBytes(size_t bytes) {
 }
 
 void* BFCArena::Alloc(size_t size) {
-  return AllocateRawInternal(size, false);
+  void* p = AllocateRawInternal(size, false);
+  std::cout << "BFCArena::Alloc size=" << size << " allocator=" << device_allocator_->Info().name << " p=" << p << "\n";
+  return p;
 }
 
 void* BFCArena::Reserve(size_t size) {
+  std::cout << "BFCArena::Reserve size=" << size << " allocator=" << device_allocator_->Info().name << "\n";
   if (size == 0)
     return nullptr;
 
@@ -337,6 +346,8 @@ void BFCArena::SplitChunk(BFCArena::ChunkHandle h, size_t num_bytes) {
 }
 
 void BFCArena::Free(void* p) {
+  std::cout << "BFCArena::Free p=" << p << " allocator=" << device_allocator_->Info().name << "\n";
+
   if (p == nullptr) {
     return;
   }
