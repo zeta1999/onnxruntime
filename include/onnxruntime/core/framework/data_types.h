@@ -224,6 +224,7 @@ class DataTypeImpl {
   // MLDataType. DataType is produced by internalizing an instance of
   // TypeProto contained within MLDataType
   static void RegisterDataType(MLDataType);
+  static void RegisterExperiemntalDataType(MLDataType);
   static MLDataType GetDataType(const std::string&);
 
   static const std::vector<MLDataType>& AllTensorTypes();
