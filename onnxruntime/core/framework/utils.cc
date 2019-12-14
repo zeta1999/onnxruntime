@@ -699,6 +699,8 @@ int32_t ONNXTensorElementDataTypeToProtoTensorType(ONNXTensorElementDataType onn
       return onnx::TensorProto_DataType::TensorProto_DataType_COMPLEX64;
     case ONNX_TENSOR_ELEMENT_DATA_TYPE_COMPLEX128:
       return onnx::TensorProto_DataType::TensorProto_DataType_COMPLEX128;
+    case ONNX_TENSOR_ELEMENT_DATA_TYPE_DATE_TIME:
+      return onnx::TensorProto_DataType_DATE_TIME;
     case ONNX_TENSOR_ELEMENT_DATA_TYPE_UNDEFINED:
     default:
       assert(false);

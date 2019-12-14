@@ -8,10 +8,6 @@
 #include "core/framework/data_types_internal.h"
 #include "core/graph/onnx_protobuf.h"
 
-#ifdef MICROSOFT_AUTOML
-#include "automl_ops/automl_types.h"
-#endif
-
 #ifdef __GNUC__
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wignored-qualifiers"
@@ -101,6 +97,8 @@ template struct
     TensorElementTypeSetter<uint64_t>;
 template struct
     TensorElementTypeSetter<BFloat16>;
+template struct
+    TensorElementTypeSetter<DateTime>;
 
 void CopyMutableMapValue(const ONNX_NAMESPACE::TypeProto& value_proto,
                          ONNX_NAMESPACE::TypeProto& map_proto) {
@@ -237,9 +235,6 @@ class DataTypeRegistry {
 
   DataTypeRegistry() {
     RegisterAllProtos([this](MLDataType mltype) { RegisterDataType(mltype); });
-#ifdef MICROSOFT_AUTOML
-    automl::RegisterAutoMLTypes([this](MLDataType mltype) { RegisterDataType(mltype); });
-#endif
   }
 
   ~DataTypeRegistry() = default;
@@ -839,6 +834,8 @@ ORT_REGISTER_PRIM_TYPE(uint32_t);
 ORT_REGISTER_PRIM_TYPE(uint64_t);
 ORT_REGISTER_PRIM_TYPE(MLFloat16);
 ORT_REGISTER_PRIM_TYPE(BFloat16);
+// Currently experimental
+ORT_REGISTER_PRIM_TYPE(DateTime);
 
 const std::vector<MLDataType>& DataTypeImpl::AllFixedSizeTensorExceptHalfTypes() {
   static std::vector<MLDataType> all_fixed_size_tensor_types =

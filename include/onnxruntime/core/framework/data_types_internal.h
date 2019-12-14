@@ -77,6 +77,11 @@ constexpr ONNX_NAMESPACE::TensorProto_DataType ToTensorProtoElementType<BFloat16
   return ONNX_NAMESPACE::TensorProto_DataType_BFLOAT16;
 };
 
+template <>
+constexpr ONNX_NAMESPACE::TensorProto_DataType ToTensorProtoElementType<DateTime>() {
+  return ONNX_NAMESPACE::TensorProto_DataType_DATE_TIME;
+};
+
   // The following primitives are strongly recommended for switching on tensor input datatypes for
   // kernel implementations.
   //

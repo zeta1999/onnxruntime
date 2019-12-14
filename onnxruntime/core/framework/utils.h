@@ -162,6 +162,11 @@ constexpr ONNXTensorElementDataType GetONNXTensorElementDataType<uint64_t>() {
   return ONNX_TENSOR_ELEMENT_DATA_TYPE_UINT64;
 }
 
+template <>
+constexpr ONNXTensorElementDataType GetONNXTensorElementDataType<DateTime>() {
+  return ONNX_TENSOR_ELEMENT_DATA_TYPE_DATE_TIME;
+}
+
 int32_t ONNXTensorElementDataTypeToProtoTensorType(ONNXTensorElementDataType);
 
 }  // namespace utils

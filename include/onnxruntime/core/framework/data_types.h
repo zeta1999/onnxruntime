@@ -120,6 +120,24 @@ inline bool operator<(const BFloat16& left, const BFloat16& right) {
   return left.val < right.val;
 }
 
+struct DateTime {
+  int64_t val;
+  DateTime() : val(0) {}
+  explicit DateTime(int64_t val) : val(val) {}
+};
+
+inline bool operator==(const DateTime& left, const DateTime& right) {
+  return left.val == right.val;
+}
+
+inline bool operator!=(const DateTime& left, const DateTime& right) {
+  return left.val != right.val;
+}
+
+inline bool operator<(const DateTime& left, const DateTime& right) {
+  return left.val < right.val;
+}
+
 // DataTypeImpl pointer as unique DataTypeImpl identifier.
 using MLDataType = const DataTypeImpl*;
 // be used with class MLValue
@@ -277,7 +295,7 @@ struct IsAnyOf<T, H, Tail...> {
 template <typename T>
 struct IsTensorContainedType : public IsAnyOf<T, float, uint8_t, int8_t, uint16_t, int16_t,
                                               int32_t, int64_t, std::string, bool, MLFloat16,
-                                              double, uint32_t, uint64_t, BFloat16> {
+                                              double, uint32_t, uint64_t, BFloat16, DateTime> {
 };
 
 /// Use "IsSparseTensorContainedType<T>::value" to test if a type T
@@ -424,6 +442,42 @@ class TensorType : public TensorTypeBase {
 
  private:
   TensorType() {
+    using namespace data_types_internal;
+    TensorElementTypeSetter<elemT>::SetTensorElementType(this->mutable_type_proto());
+  }
+};
+
+/**
+ * \brief This is an experimental Tensor type. This is just like
+ *        a regular tensor type but it contains an Opaque proto type.
+ *        This is done on purpose so this type exposes itself as opaque to
+ *        ONNX type system (since ONNX does not know about our new DataType enum)
+ *        but behaves like a regular tensor inside ORT with the DatType enum
+ *        available locally through our local copy of protobuf.
+ *
+ * \details
+ *        Usage:
+ *        ORT_REGISTER_EXP_TENSOR(ELEMENT_TYPE)
+ *        Currently all of the Tensors irrespective of the dimensions are mapped to Tensor<type>
+ *        type. IsCompatible() currently ignores shape.
+ */
+
+template <typename elemT>
+class ExperiemntalTensorType : public TensorTypeBase {
+ public:
+  static_assert(data_types_internal::IsTensorContainedType<elemT>::value,
+                "Requires one of the tensor fundamental types");
+
+  static MLDataType Type();
+
+  /// Tensors only can contain basic data types
+  /// that have been previously registered with ONNXRuntime
+  MLDataType GetElementType() const override {
+    return DataTypeImpl::GetType<elemT>();
+  }
+
+ private:
+  ExperiemntalTensorType() {
     using namespace data_types_internal;
     TensorElementTypeSetter<elemT>::SetTensorElementType(this->mutable_type_proto());
   }

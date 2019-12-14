@@ -347,6 +347,9 @@ message TensorProto {
     BFLOAT16 = 16;
 
     // Future extensions go here.
+    // Posix time in seconds since epoch
+    // represented as int64
+    DATE_TIME = 100;
   }
 
   // The shape of the tensor.
@@ -393,7 +396,7 @@ message TensorProto {
   // When this field is present, the data_type field MUST be STRING
   repeated bytes string_data = 6;
 
-  // For int64.
+  // For int64, DATE_TIME
   // When this field is present, the data_type field MUST be INT64
   repeated int64 int64_data = 7 [packed = true];
 
