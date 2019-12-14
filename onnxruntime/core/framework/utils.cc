@@ -97,7 +97,7 @@ AllocatorPtr GetAllocator(const SessionState& session_state, const OrtMemoryInfo
 
 bool ProviderIsCpuBased(const std::string& provider_type) {
   return provider_type == onnxruntime::kCpuExecutionProvider ||
-         provider_type == onnxruntime::kMklDnnExecutionProvider ||
+         provider_type == onnxruntime::kDnnlExecutionProvider ||
          provider_type == onnxruntime::kNGraphExecutionProvider ||
          provider_type == onnxruntime::kNupharExecutionProvider ||
          provider_type == onnxruntime::kOpenVINOExecutionProvider ||
@@ -155,8 +155,6 @@ static Status CopyMLValue(const DataTransferManager& data_transfer_mgr,
   //  target_mlvalue = source_mlvalue;
   //  return Status::OK();
   //}
-
-  assert(source_mlvalue.IsTensor());
 
   auto& source_tensor = source_mlvalue.Get<Tensor>();
   if (!target_mlvalue.IsAllocated()) {

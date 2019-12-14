@@ -12,6 +12,7 @@
 
 namespace onnxruntime {
 class SparseTensor;
+class TensorSeq;
 }
 
 /**
@@ -20,7 +21,7 @@ class SparseTensor;
 struct OrtValue {
  public:
   OrtValue() : data_(nullptr) {}
-  virtual ~OrtValue() = default;
+  ~OrtValue() = default;
 
   OrtValue(void* pData, onnxruntime::MLDataType type, onnxruntime::DeleteFunc deleter) {
     Init(pData, type, deleter);
@@ -49,6 +50,10 @@ struct OrtValue {
 
   bool IsTensor() const noexcept {
     return (type_ != nullptr && type_->IsTensorType());
+  }
+
+  bool IsTensorSequence () const noexcept {
+    return (type_ != nullptr && type_->IsTensorSequenceType());
   }
 
   bool IsSparseTensor() const noexcept {
@@ -87,6 +92,18 @@ template <>
 inline onnxruntime::Tensor* OrtValue::GetMutable<onnxruntime::Tensor>() {
   ORT_ENFORCE(IsTensor(), "Trying to get a Tensor, but got: ", onnxruntime::DataTypeImpl::ToString(type_));
   return static_cast<onnxruntime::Tensor*> (data_.get());
+}
+
+template <>
+inline const onnxruntime::TensorSeq& OrtValue::Get<onnxruntime::TensorSeq>() const {
+  ORT_ENFORCE(IsTensorSequence(), "Trying to get a TensorSeq, but got: ", onnxruntime::DataTypeImpl::ToString(type_));
+  return *static_cast<onnxruntime::TensorSeq*>(data_.get());
+}
+
+template <>
+inline onnxruntime::TensorSeq* OrtValue::GetMutable<onnxruntime::TensorSeq>() {
+  ORT_ENFORCE(IsTensorSequence(), "Trying to get a TensorSeq, but got: ", onnxruntime::DataTypeImpl::ToString(type_));
+  return static_cast<onnxruntime::TensorSeq*>(data_.get());
 }
 
 template <>

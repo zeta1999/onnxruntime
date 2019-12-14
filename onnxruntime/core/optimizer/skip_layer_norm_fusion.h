@@ -8,20 +8,17 @@
 namespace onnxruntime {
 
 /**
-@Class LayerNormFusion
+@Class SkipLayerNormFusion
 
-Rewrite graph fusing Layer Normalization subgraph to a single LayerNormalization node.
-
-The formula corresponding to LayerNorm activation subgraph:
-(x - mean(x, axis)) / sqrt(var(x, axis)) * scale + bias, where x is the input.
+Rewrite graph fusing Add + Layer Normalization subgraph to a single SkipLayerNormalization node.
 
 */
 class SkipLayerNormFusion : public GraphTransformer {
  public:
-  SkipLayerNormFusion(const std::unordered_set<std::string>& compatible_execution_providers = {}) noexcept
+  explicit SkipLayerNormFusion(const std::unordered_set<std::string>& compatible_execution_providers = {}) noexcept
       : GraphTransformer("SkipLayerNormFusion", compatible_execution_providers) {}
 
-  Status ApplyImpl(Graph& graph, bool& modified, int graph_level) const override;
+  Status ApplyImpl(Graph& graph, bool& modified, int graph_level, const logging::Logger& logger) const override;
 };
 
 }  // namespace onnxruntime

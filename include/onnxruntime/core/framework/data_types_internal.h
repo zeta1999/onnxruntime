@@ -6,6 +6,7 @@
 #include <assert.h>
 #include <stdint.h>
 #include <string>
+#include <vector>
 
 #include "core/common/common.h"
 #include "core/framework/data_types.h"
@@ -15,7 +16,9 @@ namespace onnxruntime {
 namespace utils {
 
 template <typename T>
-constexpr ONNX_NAMESPACE::TensorProto_DataType ToTensorProtoElementType();
+constexpr ONNX_NAMESPACE::TensorProto_DataType ToTensorProtoElementType() {
+  return ONNX_NAMESPACE::TensorProto_DataType_UNDEFINED;
+}
 
 template <>
 constexpr ONNX_NAMESPACE::TensorProto_DataType ToTensorProtoElementType<float>() {
@@ -226,7 +229,7 @@ struct CallableDispatchableHelper {
   int32_t dt_type_;  // Type currently dispatched
   size_t called_;
 
-  explicit CallableDispatchableHelper(int32_t dt_type) : dt_type_(dt_type), called_(0) {}
+  explicit CallableDispatchableHelper(int32_t dt_type) noexcept : dt_type_(dt_type), called_(0) {}
 
   // Must return integer to be in a expandable context
   template <class T, class Fn, class... Args>
@@ -254,7 +257,7 @@ struct CallableDispatchableRetHelper {
   size_t called_;
   Ret result_;
 
-  explicit CallableDispatchableRetHelper(int32_t dt_type) : dt_type_(dt_type), called_(0), result_() {}
+  explicit CallableDispatchableRetHelper(int32_t dt_type) noexcept : dt_type_(dt_type), called_(0), result_() {}
 
   Ret Get() {
     // See if there were multiple invocations.It is a bug.
@@ -303,7 +306,7 @@ class MLTypeCallDispatcher {
   int32_t dt_type_;
 
  public:
-  explicit MLTypeCallDispatcher(int32_t dt_type) : dt_type_(dt_type) {}
+  explicit MLTypeCallDispatcher(int32_t dt_type) noexcept : dt_type_(dt_type) {}
 
   template <typename... Args>
   void Invoke(Args&&... args) const {
@@ -324,7 +327,7 @@ class MLTypeCallDispatcherRet {
   int32_t dt_type_;
 
  public:
-  explicit MLTypeCallDispatcherRet(int32_t dt_type) : dt_type_(dt_type) {}
+  explicit MLTypeCallDispatcherRet(int32_t dt_type) noexcept : dt_type_(dt_type) {}
 
   template <typename... Args>
   Ret Invoke(Args&&... args) const {
@@ -342,6 +345,158 @@ class MLTypeCallDispatcherRet {
     return helper.Get();
   }
 };
+
+namespace data_types_internal {
+
+enum class ContainerType : uint16_t {
+  kUndefined = 0,
+  kTensor = 1,
+  kMap = 2,
+  kSequence = 3,
+  kOpaque = 4
+};
+
+class TypeNode {
+  // type_ is a TypeProto value case enum
+  // that may be a kTypeTensor, kTypeMap, kTypeSequence
+  // prim_type_ is a TypeProto_DataType enum that has meaning
+  // - for Tensor then prim_type_ is the contained type
+  // - for Map prim_type is the key type. Next entry describes map value
+  // - For sequence prim_type_ is not used and has no meaning. Next entry
+  //   describes the value for the sequence
+  // Tensor is always the last entry as it describes a contained primitive type.
+  ContainerType type_;
+  uint16_t prim_type_;
+
+ public:
+  TypeNode(ContainerType type, int32_t prim_type) noexcept {
+    type_ = type;
+    prim_type_ = static_cast<uint16_t>(prim_type);
+  }
+
+  bool IsType(ContainerType type) const noexcept {
+    return type_ == type;
+  }
+
+  bool IsPrimType(int32_t prim_type) const noexcept {
+    return prim_type_ == static_cast<uint16_t>(prim_type);
+  }
+};
+
+}  // namespace data_types_internal
+
+////////////////////////////////////////////////////////////////////
+/// Provides generic interface to test whether MLDataType is a Sequence,
+/// Map or an Opaque type including arbitrary recursive definitions
+/// without querying DataTypeImpl::GetType<T> for all known complex types
+
+// T is a sequence contained element type
+// If returns true then we know that the runtime
+// representation is std::vector<T>
+// T itself can be a runtime representation of another
+// sequence, map, opaque type or a tensor
+//
+// That is it can be std::vector or a std::map
+// If T is a primitive type sequence is tested whether it contains
+// tensors of that type
+//
+// If T is an opaque type, then it is only tested to be opaque but not exactly
+// a specific opaque type. To Test for a specific Opaque type use IsOpaqueType() below
+//
+// This class examines the supplied MLDataType and records
+// its information in a vector so any subsequent checks for Sequences and Maps
+// are quick.
+class ContainerChecker {
+  using Cont = std::vector<data_types_internal::TypeNode>;
+  Cont types_;
+
+  // Default IsContainerOfType is for Opaque type
+  template <class T>
+  struct IsContainerOfType {
+    static bool check(const Cont& c, size_t index) {
+      if (index >= c.size()) {
+        return false;
+      }
+      return c[index].IsType(data_types_internal::ContainerType::kOpaque);
+    }
+  };
+
+  // Handles the case where sequence element is also a sequence
+  template <class T>
+  struct IsContainerOfType<std::vector<T>> {
+    static bool check(const Cont& c, size_t index) {
+      if (index >= c.size()) {
+        return false;
+      }
+      if (c[index].IsType(data_types_internal::ContainerType::kSequence)) {
+        ORT_ENFORCE(++index < c.size(), "Sequence is missing type entry for its element");
+        constexpr int32_t prim_type = ToTensorProtoElementType<T>();
+        // Check if this is a primitive type and it matches
+        if (prim_type != ONNX_NAMESPACE::TensorProto_DataType_UNDEFINED) {
+          return c[index].IsType(data_types_internal::ContainerType::kTensor) &&
+                 c[index].IsPrimType(prim_type);
+        } else {
+          // T is not primitive, check next entry for non-primitive proto
+          return IsContainerOfType<T>::check(c, index);
+        }
+      }
+      return false;
+    }
+  };
+
+  template <class K, class V>
+  struct IsContainerOfType<std::map<K, V>> {
+    static bool check(const Cont& c, size_t index) {
+      static_assert(ToTensorProtoElementType<K>() != ONNX_NAMESPACE::TensorProto_DataType_UNDEFINED,
+                    "Map Key can not be a non-primitive type");
+      if (index >= c.size()) {
+        return false;
+      }
+      if (!c[index].IsType(data_types_internal::ContainerType::kMap)) {
+        return false;
+      }
+      constexpr int32_t key_type = ToTensorProtoElementType<K>();
+      if (!c[index].IsPrimType(key_type)) {
+        return false;
+      }
+      ORT_ENFORCE(++index < c.size(), "Map is missing type entry for its value");
+      constexpr int32_t val_type = ToTensorProtoElementType<V>();
+      if (val_type != ONNX_NAMESPACE::TensorProto_DataType_UNDEFINED) {
+        return c[index].IsType(data_types_internal::ContainerType::kTensor) &&
+               c[index].IsPrimType(val_type);
+      }
+      return IsContainerOfType<V>::check(c, index);
+    }
+  };
+
+ public:
+  explicit ContainerChecker(MLDataType);
+  ~ContainerChecker() = default;
+
+  bool IsMap() const noexcept {
+    assert(!types_.empty());
+    return types_[0].IsType(data_types_internal::ContainerType::kMap);
+  }
+
+  bool IsSequence() const noexcept {
+    assert(!types_.empty());
+    return types_[0].IsType(data_types_internal::ContainerType::kSequence);
+  }
+
+  template <class T>
+  bool IsSequenceOf() const {
+    assert(!types_.empty());
+    return IsContainerOfType<std::vector<T>>::check(types_, 0);
+  }
+
+  template <class K, class V>
+  bool IsMapOf() const {
+    assert(!types_.empty());
+    return IsContainerOfType<std::map<K, V>>::check(types_, 0);
+  }
+};
+
+bool IsOpaqueType(MLDataType ml_type, const char* domain, const char* name);
 
 }  // namespace utils
 }  // namespace onnxruntime
