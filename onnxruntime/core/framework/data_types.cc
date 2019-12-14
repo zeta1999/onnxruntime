@@ -233,19 +233,7 @@ bool IsCompatible(const ONNX_NAMESPACE::TypeProto_SparseTensor& tensor_proto,
 void RegisterAllProtos(const std::function<void(MLDataType)>& /*reg_fn*/);
 
 class DataTypeRegistry {
-  // Mapping internalized standard DataType to MLDataType
-  std::unordered_map<std::string, MLDataType> mapping_;
-
-  ///////////////////////////////////////////////////////////////
-  // Experimental tensor contained types support.
-  // Mapping experimental internalized data string to tensor contained data type enum
-  // The string key serves as an internalized string
-  using InternalizedMap = std::unordered_map<std::string, MLDataType>;
-  using const_internalized_iterator = InternalizedMap::const_iterator;
-  InternalizedMap experiemental_type_to_mltype_;
-  // This holds a mapping from experimental tensor contained datatype enum to
-  // an iterator in the experiemental_type_to_mltype_
-  std::unordered_map<int32_t, const_internalized_iterator> experimental_tensor_data_type_to_type_str_;
+  std::unordered_map<DataType, MLDataType> mapping_;
 
   DataTypeRegistry() {
     RegisterAllProtos([this](MLDataType mltype) { RegisterDataType(mltype); });
@@ -270,38 +258,14 @@ class DataTypeRegistry {
     const auto* proto = mltype->GetTypeProto();
     ORT_ENFORCE(proto != nullptr, "Only ONNX MLDataType can be registered");
     DataType type = Utils::DataTypeUtils::ToType(*proto);
-    auto p = mapping_.insert(std::make_pair(*type, mltype));
+    auto p = mapping_.insert(std::make_pair(type, mltype));
     ORT_ENFORCE(p.second, "We do not expect duplicate registration of types for: ", type);
-  }
-
-  const std::string* RegisterExperimentalDataType (MLDataType mltype) {
-    if (mltype->IsTensorType()) {
-      auto elem_mltype = mltype->AsTensorType()->GetElementType();
-      std::string str_type(DataTypeImpl::ToString(elem_mltype));
-      auto hit = mapping_.find(str_type);
-      ORT_ENFORCE(hit == mapping_.end(), "This type must not be registered as one of the standard types");
-      auto p = experiemental_type_to_mltype_.insert(std::make_pair(str_type, mltype));
-      ORT_ENFORCE(p.second, "Duplicate experimental type: ", str_type);
-      auto elem_type = elem_mltype->AsPrimitiveDataType()->GetDataType();
-      auto pex = experimental_tensor_data_type_to_type_str_.insert(std::make_pair(elem_type, p.first));
-      ORT_ENFORCE(pex.second, "Duplicate experimental elem_type");
-    } else {
-      ORT_THROW("Only tensors experimental types are currently supported");
-    }
-    return nullptr;
   }
 
   MLDataType GetMLDataType(const ONNX_NAMESPACE::TypeProto& proto) const {
     using namespace ONNX_NAMESPACE;
-    if (proto.value_case() == TypeProto::kTensorType) {
-      auto elem_type = proto.tensor_type().elem_type();
-      auto ex_hit = experimental_tensor_data_type_to_type_str_.find(elem_type);
-      if (ex_hit != experimental_tensor_data_type_to_type_str_.end()) {
-        return ex_hit->second->second;
-      }
-    }
     DataType type = Utils::DataTypeUtils::ToType(proto);
-    auto p = mapping_.find(*type);
+    auto p = mapping_.find(type);
     if (p != mapping_.end()) {
       return p->second;
     }
@@ -309,12 +273,12 @@ class DataTypeRegistry {
   }
 
   MLDataType GetMLDataType(const std::string& data_type) const {
-    auto ex_hit = experiemental_type_to_mltype_.find(data_type);
-    if (ex_hit != experiemental_type_to_mltype_.end()) {
-      return ex_hit->second;
-    }
     using namespace ONNX_NAMESPACE;
-    auto hit = mapping_.find(data_type);
+    DataType dtype = Utils::DataTypeUtils::ToType(data_type);
+    if (dtype == nullptr) {
+      return nullptr;
+    }
+    auto hit = mapping_.find(dtype);
     if (hit == mapping_.end()) {
       return nullptr;
     }
@@ -697,17 +661,6 @@ MLDataType DataTypeImpl::GetDataType(const std::string& data_type) {
   return data_types_internal::DataTypeRegistry::instance().GetMLDataType(data_type);
 }
 
-MLDataType DataTypeImpl::TypeFromProto(const ONNX_NAMESPACE::TypeProto& proto) {
-  const auto& registry = data_types_internal::DataTypeRegistry::instance();
-
-  MLDataType type = registry.GetMLDataType(proto);
-  if (type == nullptr) {
-    DataType str_type = ONNX_NAMESPACE::Utils::DataTypeUtils::ToType(proto);
-    ORT_NOT_IMPLEMENTED("MLDataType for: ", *str_type, " is not currently registered or supported");
-  }
-  return type;
-}
-
 const char* DataTypeImpl::ToString(MLDataType type) {
   if (type == nullptr)
     return "(null)";
@@ -857,6 +810,17 @@ const SparseTensorTypeBase* DataTypeImpl::SparseTensorTypeFromONNXEnum(int type)
     default:
       ORT_NOT_IMPLEMENTED("sparse tensor type ", type, " is not supported");
   }
+}
+
+MLDataType DataTypeImpl::TypeFromProto(const ONNX_NAMESPACE::TypeProto& proto) {
+  const auto& registry = data_types_internal::DataTypeRegistry::instance();
+
+  MLDataType type = registry.GetMLDataType(proto);
+  if (type == nullptr) {
+    DataType str_type = ONNX_NAMESPACE::Utils::DataTypeUtils::ToType(proto);
+    ORT_NOT_IMPLEMENTED("MLDataType for: ", *str_type, " is not currently registered or supported");
+  }
+  return type;
 }
 
 //Below are the types the we need to execute the runtime
