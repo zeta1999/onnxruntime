@@ -20,14 +20,17 @@ class OptimizerExecutionFrame final : public IExecutionFrame {
  public:
   class Info {
    public:
-    Info(const std::vector<const Node*>& nodes, const InitializedTensorSet& initialized_tensor_set);
+    Info(const std::vector<const Node*>& nodes, const InitializedTensorSet& initialized_tensor_set,
+         const CPUExecutionProvider& cpu_execution_provider);
+
     ~Info() {
       for (auto& kvp : deleter_for_initialized_tensors_) {
         kvp.second.f(kvp.second.param);
       }
     }
+
     AllocatorPtr GetAllocator(const OrtMemoryInfo& info) const {
-      return cpu_execution_provider_->GetAllocator(info.id, info.mem_type);
+      return cpu_execution_provider_.GetAllocator(info.id, info.mem_type);
     }
 
     AllocatorPtr GetAllocator() const {
@@ -52,7 +55,7 @@ class OptimizerExecutionFrame final : public IExecutionFrame {
 
    private:
     // The optimizer is running on CPU execution provider by default.
-    std::unique_ptr<CPUExecutionProvider> cpu_execution_provider_;
+    const CPUExecutionProvider& cpu_execution_provider_;
     const int device_id_{0};
     const OrtMemType mem_type_{OrtMemTypeDefault};
     AllocatorPtr allocator_ptr_;

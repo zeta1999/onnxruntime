@@ -11,6 +11,14 @@ using namespace onnxruntime::common;
 
 namespace onnxruntime {
 
+ConstantFolding::ConstantFolding(const std::unordered_set<std::string>& compatible_execution_providers) noexcept
+    : GraphTransformer("ConstantFolding", compatible_execution_providers) {
+  cpu_execution_provider_ = onnxruntime::make_unique<CPUExecutionProvider>(CPUExecutionProviderInfo());
+}
+
+// dtor here for delete of cpu_execution_provider_
+ConstantFolding::~ConstantFolding() {}
+
 Status ConstantFolding::ApplyImpl(Graph& graph, bool& modified, int graph_level, const logging::Logger& logger) const {
   GraphViewer graph_viewer(graph);
   auto& order = graph_viewer.GetNodesInTopologicalOrder();
@@ -53,7 +61,7 @@ Status ConstantFolding::ApplyImpl(Graph& graph, bool& modified, int graph_level,
     }
 
     // Create execution frame for executing constant nodes.
-    OptimizerExecutionFrame::Info info({node}, constant_inputs);
+    OptimizerExecutionFrame::Info info({node}, constant_inputs, *cpu_execution_provider_);
 
     // undo the EP change in case something fails prior to node removal
     if (!cpu_ep) {

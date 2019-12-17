@@ -320,6 +320,12 @@ common::Status InferenceSession::RegisterGraphTransformer(
   if (p_graph_transformer == nullptr) {
     return Status(common::ONNXRUNTIME, common::FAIL, "Received nullptr for graph transformer");
   }
+
+  if (is_inited_) {
+    return Status(common::ONNXRUNTIME, common::FAIL,
+                  "Session has already been initialized. Transformers must be registered prior to that.");
+  }
+
   return graph_transformation_mgr_->Register(std::move(p_graph_transformer), level);
 }
 
@@ -596,9 +602,13 @@ common::Status InferenceSession::TransformGraph(onnxruntime::Graph& graph,
   }
 #endif
 
+  LOGS(*session_logger_, INFO) << "Level1 Graph transformers applied.";
+
   // Do partitioning based on execution providers' capability.
   GraphPartitioner partitioner(kernel_registry_manager, providers);
   ORT_RETURN_IF_ERROR_SESSIONID_(partitioner.Partition(graph, session_state.ExportDll(), session_state.GetMutableFuncMgr()));
+
+  LOGS(*session_logger_, INFO) << "Graph partitioned.";
 
   // apply transformers except default transformers
   // Default transformers are required for correctness and they are owned and run by inference session
@@ -610,9 +620,11 @@ common::Status InferenceSession::TransformGraph(onnxruntime::Graph& graph,
   // Insert cast node/s.
   ORT_RETURN_IF_ERROR_SESSIONID_(insert_cast_transformer.Apply(graph, modified, *session_logger_));
 
+  LOGS(*session_logger_, INFO) << "All enabled transformers have been applied.";
+
   // Now every node should be already assigned to an execution provider
   std::unordered_map<std::string, std::vector<std::string>> node_placements;
-  bool is_verbose_mode = session_logger_->GetSeverity() == logging::Severity::kVERBOSE;
+  bool is_verbose_mode = session_logger_->GetSeverity() >= logging::Severity::kVERBOSE;
   for (auto& node : graph.Nodes()) {
     const auto& node_provider = node.GetExecutionProviderType();
     if (node_provider.empty()) {
@@ -831,6 +843,9 @@ common::Status InferenceSession::Initialize() {
     // handle any subgraphs
     ORT_RETURN_IF_ERROR_SESSIONID_(InitializeSubgraphSessions(graph, *session_state_));
     is_inited_ = true;
+
+    // release the transformers as we won't use them again
+    graph_transformation_mgr_ = nullptr;
 
     // and log telemetry
     const Env& env = Env::Default();

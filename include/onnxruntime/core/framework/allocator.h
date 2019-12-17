@@ -8,6 +8,7 @@
 #include <string>
 #include <cstring>
 #include <type_traits>
+#include <iostream>
 
 #include "core/common/common.h"
 #include "core/common/exceptions.h"
@@ -218,7 +219,12 @@ class IAllocator {
     }
     return IAllocatorUniquePtr<T>{
         static_cast<T*>(allocator->Alloc(alloc_size)),  // allocate
-        [=](T* ptr) { allocator->Free(ptr); }};         // capture IAllocator so it's always valid, and use as deleter
+        [=](T* ptr) {
+          if (count_or_bytes > 30 * 1024 * 1024)
+            std::cout << "Free " << count_or_bytes;
+
+          allocator->Free(ptr);
+        }};  // capture IAllocator so it's always valid, and use as deleter
   }
 };
 
@@ -297,11 +303,10 @@ class MiMallocAllocator : public IDeviceAllocator {
 
 #endif
 
-
 #ifdef USE_MIMALLOC
-  using TAllocator = MiMallocAllocator;
+using TAllocator = MiMallocAllocator;
 #else
-  using TAllocator = CPUAllocator;
+using TAllocator = CPUAllocator;
 #endif
 
 using AllocatorPtr = std::shared_ptr<IAllocator>;

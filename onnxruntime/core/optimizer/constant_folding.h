@@ -8,6 +8,8 @@
 
 namespace onnxruntime {
 
+class CPUExecutionProvider;
+
 /**
 @class ConstantFolding
 
@@ -16,8 +18,8 @@ it statically computes parts of the graph that rely only on constant initializer
 */
 class ConstantFolding : public GraphTransformer {
  public:
-  ConstantFolding(const std::unordered_set<std::string>& compatible_execution_providers = {}) noexcept
-      : GraphTransformer("ConstantFolding", compatible_execution_providers) {}
+  ConstantFolding(const std::unordered_set<std::string>& compatible_execution_providers = {}) noexcept;
+  ~ConstantFolding();
 
  private:
   /** Constant folding will not be applied to nodes whose op_type is included in this set.
@@ -26,6 +28,10 @@ class ConstantFolding : public GraphTransformer {
       {"RandomUniform", "RandomNormal", "RandomUniformLike", "RandomNormalLike", "Multinomial"};
 
   Status ApplyImpl(Graph& graph, bool& modified, int graph_level, const logging::Logger& logger) const override;
+
+  // TODO: Ideally the EPs from the session would be provided here so we could use any of them. For now we only
+  // utilize the CPU EP for constant folding so we create a temporary local one.
+  std::unique_ptr<CPUExecutionProvider> cpu_execution_provider_;
 };
 
 }  // namespace onnxruntime

@@ -9,7 +9,10 @@ BFCArena::BFCArena(std::unique_ptr<IDeviceAllocator> resource_allocator,
     : device_allocator_(std::move(resource_allocator)),
       free_chunks_list_(kInvalidChunkHandle),
       next_allocation_id_(1),
-      info_(device_allocator_->Info().name, OrtAllocatorType::OrtArenaAllocator, device_allocator_->Info().device, device_allocator_->Info().id, device_allocator_->Info().mem_type) {
+      info_(device_allocator_->Info().name, OrtAllocatorType::OrtArenaAllocator,
+            device_allocator_->Info().device, device_allocator_->Info().id, device_allocator_->Info().mem_type) {
+  LOGS_DEFAULT(INFO) << "Creating BFCArena for " << device_allocator_->Info().name;
+
   curr_region_allocation_bytes_ = RoundedBytes(std::min(total_memory, size_t{1048576}));
 
   // Allocate the requested amount of memory.
@@ -17,13 +20,15 @@ BFCArena::BFCArena(std::unique_ptr<IDeviceAllocator> resource_allocator,
   stats_.bytes_limit = static_cast<int64_t>(total_memory);
   // Create a bunch of bins of various good sizes.
 
-  // We create bins to fit all possible ranges that cover the
-  // memory_limit_ starting from allocations up to 256 bytes to
-  // allocations up to (and including) the memory limit.
+  // We create bins to fit all possible ranges that cover the memory_limit_ starting from allocations up to 256 bytes
+  // to allocations up to (and including) the memory limit.
+  LOGS_DEFAULT(VERBOSE) << "Creating " << kNumBins << " bins of max chunk size "
+                        << BinNumToSize(0) << " to " << BinNumToSize(kNumBins - 1);
+
   for (BinNum b = 0; b < kNumBins; b++) {
     size_t bin_size = BinNumToSize(b);
-    LOGS_DEFAULT(INFO) << "Creating bin of max chunk size "
-                       << bin_size;
+    //LOGS_DEFAULT(VERBOSE) << "Creating bin of max chunk size "
+    //                      << bin_size;
     new (BinFromIndex(b)) Bin(this, bin_size);
     ORT_ENFORCE(BinForSize(bin_size) == BinFromIndex(b));
     ORT_ENFORCE(BinForSize(bin_size + 255) == BinFromIndex(b));
@@ -35,6 +40,8 @@ BFCArena::BFCArena(std::unique_ptr<IDeviceAllocator> resource_allocator,
 }
 
 BFCArena::~BFCArena() {
+  LOGS_DEFAULT(INFO) << "Freeing BFCArena for " << device_allocator_->Info().name;
+
   for (const auto& region : region_manager_.regions()) {
     device_allocator_->Free(region.ptr());
   }
@@ -228,8 +235,13 @@ void* BFCArena::AllocateRawInternal(size_t num_bytes,
   }
 
   // Try to extend
+  LOGS_DEFAULT(INFO) << "Extending BFCArena for " << device_allocator_->Info().name
+                     << ". bin_num:" << bin_num << " rounded_bytes:" << rounded_bytes;
+  DumpMemoryLog(rounded_bytes);
+
   if (Extend(rounded_bytes)) {
     ptr = FindChunkPtr(bin_num, rounded_bytes, num_bytes);
+    DumpMemoryLog(rounded_bytes);
     if (ptr != nullptr) {
       return ptr;
     }
@@ -503,21 +515,19 @@ BFCArena::get_bin_debug_info() {
 
 void BFCArena::DumpMemoryLog(size_t num_bytes) {
   const std::array<BinDebugInfo, kNumBins> bin_infos = get_bin_debug_info();
+  LOGS_DEFAULT(INFO) << "Bin size: Chunks in_use/total. Allocated bytes in_use/total. Requested bytes.";
+
   for (BinNum bin_num = 0; bin_num < kNumBins; bin_num++) {
     Bin* b = BinFromIndex(bin_num);
     const BinDebugInfo& bin_info = bin_infos[bin_num];
     ORT_ENFORCE(b->free_chunks.size() ==
                 bin_info.total_chunks_in_bin - bin_info.total_chunks_in_use);
 
-    LOGS_DEFAULT(INFO) << "Bin (" << b->bin_size
-                       << "): \tTotal Chunks: " << bin_info.total_chunks_in_bin
-                       << ", Chunks in use: " << bin_info.total_chunks_in_use << ". "
-                       << bin_info.total_bytes_in_bin
-                       << " allocated for chunks. "
-                       << bin_info.total_bytes_in_use
-                       << " in use in bin. "
-                       << bin_info.total_requested_bytes_in_use
-                       << " client-requested in use in bin.";
+    LOGS_DEFAULT(INFO) << b->bin_size
+                       << ": Chunks " << bin_info.total_chunks_in_use << "/" << bin_info.total_chunks_in_bin
+                       << ". Bytes "
+                       << bin_info.total_bytes_in_use << "/" << bin_info.total_bytes_in_bin << ". "
+                       << "Requested " << bin_info.total_requested_bytes_in_use << ".";
   }
 
   // Find the bin that we would have liked to allocate in, so we

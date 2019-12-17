@@ -18,12 +18,10 @@
 namespace onnxruntime {
 
 OptimizerExecutionFrame::Info::Info(const std::vector<const Node*>& nodes,
-                                    const InitializedTensorSet& initialized_tensor_set) {
-  // Create CPU execution provider
-  // For now, CPU execution provider will be created every time when initializing Info.
-  // Later, it will be changed to pass by Info ctor.
-  cpu_execution_provider_ = onnxruntime::make_unique<CPUExecutionProvider>(CPUExecutionProviderInfo());
-  allocator_ptr_ = cpu_execution_provider_->GetAllocator(device_id_, mem_type_);
+                                    const InitializedTensorSet& initialized_tensor_set,
+                                    const CPUExecutionProvider& cpu_execution_provider)
+    : cpu_execution_provider_(cpu_execution_provider) {
+  allocator_ptr_ = cpu_execution_provider_.GetAllocator(device_id_, mem_type_);
   ORT_ENFORCE(allocator_ptr_ != nullptr, "Failed to get allocator for optimizer");
 
   data_transfer_mgr_.RegisterDataTransfer(onnxruntime::make_unique<CPUDataTransfer>());
@@ -40,7 +38,7 @@ OptimizerExecutionFrame::Info::Info(const std::vector<const Node*>& nodes,
       size_t cpu_tensor_length;
       ORT_RETURN_IF_ERROR(utils::GetSizeInBytesFromTensorProto<0>(tensor_proto, &cpu_tensor_length));
       OrtValue ort_value;
-      const OrtMemoryInfo& info = cpu_execution_provider_->GetAllocator(0, OrtMemTypeDefault)->Info();
+      const OrtMemoryInfo& info = cpu_execution_provider_.GetAllocator(0, OrtMemTypeDefault)->Info();
       std::unique_ptr<char[]> data(new char[cpu_tensor_length]);
       std::unique_ptr<Tensor> p_tensor;
       OrtCallback d;
@@ -67,8 +65,8 @@ OptimizerExecutionFrame::Info::Info(const std::vector<const Node*>& nodes,
   // create kernels for these nodes
   for (auto* node : nodes) {
     std::unique_ptr<OpKernel> op_kernel;
-    std::shared_ptr<KernelRegistry> kernel_registry = cpu_execution_provider_->GetKernelRegistry();
-    ORT_THROW_IF_ERROR(kernel_registry->TryCreateKernel(*node, *cpu_execution_provider_, initializers_,
+    std::shared_ptr<KernelRegistry> kernel_registry = cpu_execution_provider_.GetKernelRegistry();
+    ORT_THROW_IF_ERROR(kernel_registry->TryCreateKernel(*node, cpu_execution_provider_, initializers_,
                                                         ort_value_name_idx_map_, FuncManager(), data_transfer_mgr_,
                                                         op_kernel));
     kernels_[node->Index()] = std::move(op_kernel);
