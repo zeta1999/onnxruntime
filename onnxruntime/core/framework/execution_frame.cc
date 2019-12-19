@@ -267,7 +267,9 @@ Status ExecutionFrame::AllocateMLValueTensorSelfOwnBufferHelper(OrtValue& ort_va
   // if we have pre-calculated memory pattern, and the ort_value is not output mlvalue
   // try to allocated on pre-allocated big chunk.
   const auto& per_alloc_plan = GetAllocationPlan(ort_value_index);
-  if (mem_patterns_ && per_alloc_plan.alloc_kind != AllocKind::kAllocateOutput) {
+  bool is_output = per_alloc_plan.alloc_kind == AllocKind::kAllocateOutput;
+
+  if (mem_patterns_ && !is_output) {
     auto pattern = mem_patterns_->GetPatterns(location);
     if (pattern) {
       auto block = pattern->GetBlock(ort_value_index);
@@ -298,6 +300,7 @@ Status ExecutionFrame::AllocateMLValueTensorSelfOwnBufferHelper(OrtValue& ort_va
       }
     }
   }
+
   //no memory pattern, or the pattern is not correct.
   std::unique_ptr<Tensor> p_tensor = onnxruntime::make_unique<Tensor>(element_type, shape, alloc);
 
@@ -309,7 +312,8 @@ Status ExecutionFrame::AllocateMLValueTensorSelfOwnBufferHelper(OrtValue& ort_va
   // trace the memory allocation.
   // don't trace the memory allocation on string tensors, as it need
   // placement new, we don't support it in memory pattern optimization.
-  if (!utils::IsDataTypeString(element_type)) {
+  // also no point tracing memory allocation for an output as we don't use the memory pattern block in that case
+  if (!is_output && !utils::IsDataTypeString(element_type)) {
     TraceAllocate(ort_value_index, size);
   }
 
@@ -374,7 +378,7 @@ static Status AllocateTraditionalMLValue(OrtValue& ort_value, const NonTensorTyp
   return Status::OK();
 }
 
-static Status AllocateTensorSequence (OrtValue& ort_value) {
+static Status AllocateTensorSequence(OrtValue& ort_value) {
   auto ml_tensor_sequence = DataTypeImpl::GetType<TensorSeq>();
   auto p_tensor_sequence = onnxruntime::make_unique<TensorSeq>();
   ort_value.Init(p_tensor_sequence.release(), ml_tensor_sequence, ml_tensor_sequence->GetDeleteFunc());

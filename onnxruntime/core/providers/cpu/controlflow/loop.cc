@@ -464,6 +464,9 @@ Status LoopImpl::Execute(const FeedsFetchesManager& ffm) {
       fetches.clear();
     }
 
+    if (iter_num_value == 25)
+      iter_num_value = 25;
+
     status = utils::ExecuteSubgraph(session_state_, ffm, feeds, fetches, {},
                                     ExecutionMode::ORT_SEQUENTIAL, context_.GetTerminateFlag(), context_.Logger());
 

@@ -88,6 +88,7 @@ int real_main(int argc, char* argv[], Ort::Env& env) {
   std::vector<std::basic_string<PATH_CHAR_TYPE> > whitelisted_test_cases;
   int concurrent_session_runs = GetNumCpuCores();
   bool enable_cpu_mem_arena = true;
+  bool enable_gpu_mem_arena = true;
   ExecutionMode execution_mode = ExecutionMode::ORT_SEQUENTIAL;
   int repeat_count = 1;
   int p_models = GetNumCpuCores();
@@ -109,10 +110,13 @@ int real_main(int argc, char* argv[], Ort::Env& env) {
   OrtLoggingLevel logging_level = ORT_LOGGING_LEVEL_WARNING;
   {
     int ch;
-    while ((ch = getopt(argc, argv, ORT_TSTR("Ac:hj:Mn:r:e:xvo:d:"))) != -1) {
+    while ((ch = getopt(argc, argv, ORT_TSTR("ABc:hj:Mn:r:e:xvo:d:"))) != -1) {
       switch (ch) {
         case 'A':
           enable_cpu_mem_arena = false;
+          break;
+        case 'B':
+          enable_gpu_mem_arena = false;
           break;
         case 'v':
           verbosity_option_count += 1;
@@ -264,6 +268,7 @@ int real_main(int argc, char* argv[], Ort::Env& env) {
       sf.EnableCpuMemArena();
     else
       sf.DisableCpuMemArena();
+
     if (enable_mem_pattern)
       sf.EnableMemPattern();
     else
@@ -273,7 +278,10 @@ int real_main(int argc, char* argv[], Ort::Env& env) {
     if (enable_tensorrt) {
 #ifdef USE_TENSORRT
       Ort::ThrowOnError(OrtSessionOptionsAppendExecutionProvider_Tensorrt(sf, device_id));
-      Ort::ThrowOnError(OrtSessionOptionsAppendExecutionProvider_CUDA(sf, device_id));
+      if (enable_gpu_mem_arena)
+        Ort::ThrowOnError(OrtSessionOptionsAppendExecutionProvider_CUDA(sf, device_id));
+      else
+        Ort::ThrowOnError(OrtSessionOptionsAppendExecutionProvider_CUDA_NoArena(sf, device_id));
 #else
       fprintf(stderr, "TensorRT is not supported in this build");
       return -1;
@@ -290,7 +298,10 @@ int real_main(int argc, char* argv[], Ort::Env& env) {
     }
     if (enable_cuda) {
 #ifdef USE_CUDA
-      Ort::ThrowOnError(OrtSessionOptionsAppendExecutionProvider_CUDA(sf, device_id));
+      if (enable_gpu_mem_arena)
+        Ort::ThrowOnError(OrtSessionOptionsAppendExecutionProvider_CUDA(sf, device_id));
+      else
+        Ort::ThrowOnError(OrtSessionOptionsAppendExecutionProvider_CUDA_NoArena(sf, device_id));
 #else
       fprintf(stderr, "CUDA is not supported in this build");
       return -1;
@@ -360,7 +371,7 @@ int real_main(int argc, char* argv[], Ort::Env& env) {
                                                 "test_resnet101v2", "test_vgg19", "tf_inception_resnet_v2", "tf_inception_v1", "tf_inception_v3", "tf_inception_v4", "tf_mobilenet_v1_1.0_224",
                                                 "tf_mobilenet_v2_1.0_224", "tf_mobilenet_v2_1.4_224", "tf_nasnet_large", "tf_pnasnet_large", "tf_resnet_v1_50", "tf_resnet_v1_101", "tf_resnet_v1_101",
                                                 "tf_resnet_v2_101", "tf_resnet_v2_152"};
-	
+
     std::unordered_set<std::string> all_disabled_tests;
     if (enable_cuda) {
       all_disabled_tests.insert(std::begin(cuda_flaky_tests), std::end(cuda_flaky_tests));

@@ -29,6 +29,7 @@ OnnxRuntimeTestSession::OnnxRuntimeTestSession(Ort::Env& env, std::random_device
                                                const TestModelInfo* m)
     : rand_engine_(rd()), input_names_(m->GetInputCount()), input_length_(m->GetInputCount()) {
   Ort::SessionOptions session_options;
+
   const std::string& provider_name = performance_test_config.machine_config.provider_type_name;
   if (provider_name == onnxruntime::kDnnlExecutionProvider) {
 #ifdef USE_DNNL
@@ -44,7 +45,10 @@ OnnxRuntimeTestSession::OnnxRuntimeTestSession(Ort::Env& env, std::random_device
 #endif
   } else if (provider_name == onnxruntime::kCudaExecutionProvider) {
 #ifdef USE_CUDA
-    Ort::ThrowOnError(OrtSessionOptionsAppendExecutionProvider_CUDA(session_options, 0));
+    if (performance_test_config.run_config.enable_gpu_mem_arena)
+      Ort::ThrowOnError(OrtSessionOptionsAppendExecutionProvider_CUDA(session_options, 0));
+    else
+      Ort::ThrowOnError(OrtSessionOptionsAppendExecutionProvider_CUDA_NoArena(session_options, 0));
 #else
     ORT_THROW("CUDA is not supported in this build\n");
 #endif
@@ -57,7 +61,10 @@ OnnxRuntimeTestSession::OnnxRuntimeTestSession(Ort::Env& env, std::random_device
   } else if (provider_name == onnxruntime::kTensorrtExecutionProvider) {
 #ifdef USE_TENSORRT
     Ort::ThrowOnError(OrtSessionOptionsAppendExecutionProvider_Tensorrt(session_options, 0));
-    Ort::ThrowOnError(OrtSessionOptionsAppendExecutionProvider_CUDA(session_options, 0));
+    if (performance_test_config.run_config.enable_gpu_mem_arena)
+      Ort::ThrowOnError(OrtSessionOptionsAppendExecutionProvider_CUDA(session_options, 0));
+    else
+      Ort::ThrowOnError(OrtSessionOptionsAppendExecutionProvider_CUDA_NoArena(session_options, 0));
 #else
     ORT_THROW("TensorRT is not supported in this build\n");
 #endif
@@ -82,7 +89,7 @@ OnnxRuntimeTestSession::OnnxRuntimeTestSession(Ort::Env& env, std::random_device
   } else if (provider_name == onnxruntime::kAclExecutionProvider) {
 #ifdef USE_ACL
     Ort::ThrowOnError(OrtSessionOptionsAppendExecutionProvider_ACL(session_options,
-	performance_test_config.run_config.enable_cpu_mem_arena ? 1 : 0));
+                                                                   performance_test_config.run_config.enable_cpu_mem_arena ? 1 : 0));
 #else
     ORT_THROW("Acl is not supported in this build\n");
 #endif
@@ -94,11 +101,13 @@ OnnxRuntimeTestSession::OnnxRuntimeTestSession(Ort::Env& env, std::random_device
     session_options.EnableCpuMemArena();
   else
     session_options.DisableCpuMemArena();
+
   if (performance_test_config.run_config.enable_memory_pattern &&
       performance_test_config.run_config.execution_mode == ExecutionMode::ORT_SEQUENTIAL)
     session_options.EnableMemPattern();
   else
     session_options.DisableMemPattern();
+
   session_options.SetExecutionMode(performance_test_config.run_config.execution_mode);
   fprintf(stdout, "Setting intra_op_num_threads to %d\n", performance_test_config.run_config.intra_op_num_threads);
   session_options.SetIntraOpNumThreads(performance_test_config.run_config.intra_op_num_threads);

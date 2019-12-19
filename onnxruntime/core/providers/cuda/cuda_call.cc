@@ -94,6 +94,11 @@ bool CudaCall(ERRTYPE retCode, const char* exprString, const char* libName, ERRT
       }
     } catch (const std::exception& e) {  // catch, log, and rethrow since CUDA code sometimes hangs in destruction, so we'd never get to see the error
       if (THRW) {
+        // clear the error as we're throwing. if we don't do this and the exception comes from CudaKernel::Compute
+        // and is gracefully handled (main usage is BFCArena::Extend where it reduces the requested memory if
+        // insufficient is available), the check after ComputeInternal will end up returning an error for the
+        // operator.
+        // (void)cudaGetLastError();
         ORT_THROW(e.what());
       } else {
         LOGS_DEFAULT(ERROR) << e.what();

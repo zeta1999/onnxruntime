@@ -47,39 +47,56 @@ ONNX_OPERATOR_KERNEL_EX(
 
 thread_local std::unique_ptr<CUDAExecutionProvider::PerThreadContextMap> CUDAExecutionProvider::per_thread_context_map_;
 
-CUDAExecutionProvider::PerThreadContext::PerThreadContext(int device_id) {
+CUDAExecutionProvider::PerThreadContext::PerThreadContext(int device_id, bool use_arena) {
   CUDA_CALL_THROW(cudaSetDevice(device_id));
   CUBLAS_CALL_THROW(cublasCreate(&cublas_handle_));
   CUDNN_CALL_THROW(cudnnCreate(&cudnn_handle_));
 
   DeviceAllocatorRegistrationInfo default_memory_info(
       {OrtMemTypeDefault,
-       [](int id) { return onnxruntime::make_unique<CUDAAllocator>(id, CUDA); }, std::numeric_limits<size_t>::max()});
+       [use_arena](int id) {
+         return onnxruntime::make_unique<CUDAAllocator>(id, CUDA, use_arena);
+       },
+       std::numeric_limits<size_t>::max()});
   allocator_ = CreateAllocator(default_memory_info, device_id);
 }
 
 CUDAExecutionProvider::PerThreadContext::~PerThreadContext() {
+  // dtor shouldn't throw. these calls will just log any errors.
+  // https://isocpp.github.io/CppCoreGuidelines/CppCoreGuidelines#Rc-dtor-noexcept
   CUBLAS_CALL_THROW(cublasDestroy(cublas_handle_));
   CUDNN_CALL_THROW(cudnnDestroy(cudnn_handle_));
 }
 
 CUDAExecutionProvider::CUDAExecutionProvider(const CUDAExecutionProviderInfo& info)
-    : IExecutionProvider{onnxruntime::kCudaExecutionProvider}, device_id_(info.device_id) {
+    : IExecutionProvider{onnxruntime::kCudaExecutionProvider}, device_id_(info.device_id), use_arena_(info.use_arena) {
   CUDA_CALL_THROW(cudaSetDevice(device_id_));
 
   size_t free = 0;
   size_t total = 0;
   CUDA_CALL_THROW(cudaMemGetInfo(&free, &total));
 
+  bool use_arena = info.use_arena;
   DeviceAllocatorRegistrationInfo default_memory_info(
       {OrtMemTypeDefault,
-       [](int device_id) { return onnxruntime::make_unique<CUDAAllocator>(device_id, CUDA); },
+       [use_arena](int device_id) {
+         return onnxruntime::make_unique<CUDAAllocator>(device_id, CUDA, use_arena);
+       },
        /*std::numeric_limits<size_t>::max()*/ total});
   InsertAllocator(CreateAllocator(default_memory_info, device_id_));
 
+  //InsertAllocator(
+  //    use_arena
+  //        ? CreateAllocator(default_memory_info, device_id_)
+  //        : std::shared_ptr<IArenaAllocator>(
+  //              onnxruntime::make_unique<DummyArena>(
+  //                  onnxruntime::make_unique<CUDAAllocator>(device_id_, CUDA, use_arena))));
+
   DeviceAllocatorRegistrationInfo pinned_memory_info(
       {OrtMemTypeCPUOutput,
-       [](int device_id) { return onnxruntime::make_unique<CUDAPinnedAllocator>(device_id, CUDA_PINNED); },
+       [use_arena](int device_id) {
+         return onnxruntime::make_unique<CUDAPinnedAllocator>(device_id, CUDA_PINNED, use_arena);
+       },
        std::numeric_limits<size_t>::max()});
 
   InsertAllocator(CreateAllocator(pinned_memory_info, CPU_ALLOCATOR_DEVICE_ID));
@@ -95,7 +112,12 @@ CUDAExecutionProvider::CUDAExecutionProvider(const CUDAExecutionProviderInfo& in
                                                                                device_id,
                                                                                OrtMemTypeCPUInput)); },
                                                    std::numeric_limits<size_t>::max()});
-  InsertAllocator(CreateAllocator(cpu_memory_info, CPU_ALLOCATOR_DEVICE_ID));
+  //InsertAllocator(CreateAllocator(cpu_memory_info, CPU_ALLOCATOR_DEVICE_ID));
+  InsertAllocator(
+      use_arena
+          ? CreateAllocator(cpu_memory_info, CPU_ALLOCATOR_DEVICE_ID)
+          : std::shared_ptr<IArenaAllocator>(
+                onnxruntime::make_unique<DummyArena>(cpu_memory_info.factory(CPU_ALLOCATOR_DEVICE_ID))));
 }
 
 CUDAExecutionProvider::~CUDAExecutionProvider() {
@@ -125,7 +147,7 @@ CUDAExecutionProvider::PerThreadContext& CUDAExecutionProvider::GetPerThreadCont
     std::lock_guard<OrtMutex> lock(context_pool_mutex_);
     std::shared_ptr<PerThreadContext> ptc;
     if (retired_context_pool_.empty()) {
-      ptc = std::make_shared<PerThreadContext>(device_id_);
+      ptc = std::make_shared<PerThreadContext>(device_id_, use_arena_);
     } else {
       ptc = retired_context_pool_.back();
       retired_context_pool_.pop_back();

@@ -91,7 +91,8 @@ struct OrtMemoryInfo {
   OrtAllocatorType type;
   OrtDevice device;
 
-  constexpr OrtMemoryInfo(const char* name_, OrtAllocatorType type_, OrtDevice device_ = OrtDevice(), int id_ = 0, OrtMemType mem_type_ = OrtMemTypeDefault)
+  constexpr OrtMemoryInfo(const char* name_, OrtAllocatorType type_, OrtDevice device_ = OrtDevice(), int id_ = 0,
+                          OrtMemType mem_type_ = OrtMemTypeDefault)
 #if (defined(__GNUC__) || defined(__clang__))
       __attribute__((nonnull))
 #endif
@@ -220,9 +221,6 @@ class IAllocator {
     return IAllocatorUniquePtr<T>{
         static_cast<T*>(allocator->Alloc(alloc_size)),  // allocate
         [=](T* ptr) {
-          if (count_or_bytes > 30 * 1024 * 1024)
-            std::cout << "Free " << count_or_bytes;
-
           allocator->Free(ptr);
         }};  // capture IAllocator so it's always valid, and use as deleter
   }

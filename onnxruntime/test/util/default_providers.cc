@@ -9,7 +9,7 @@
 namespace onnxruntime {
 
 std::shared_ptr<IExecutionProviderFactory> CreateExecutionProviderFactory_CPU(int use_arena);
-std::shared_ptr<IExecutionProviderFactory> CreateExecutionProviderFactory_CUDA(int device_id);
+std::shared_ptr<IExecutionProviderFactory> CreateExecutionProviderFactory_CUDA(int device_id, int use_arena);
 std::shared_ptr<IExecutionProviderFactory> CreateExecutionProviderFactory_Dnnl(int use_arena);
 std::shared_ptr<IExecutionProviderFactory> CreateExecutionProviderFactory_NGraph(const char* ng_backend_type);
 std::shared_ptr<IExecutionProviderFactory> CreateExecutionProviderFactory_Nuphar(bool, const char*);
@@ -41,9 +41,9 @@ std::unique_ptr<IExecutionProvider> DefaultOpenVINOExecutionProvider() {
 #endif
 }
 
-std::unique_ptr<IExecutionProvider> DefaultCudaExecutionProvider() {
+std::unique_ptr<IExecutionProvider> DefaultCudaExecutionProvider(/*bool enable_arena*/) {
 #ifdef USE_CUDA
-  return CreateExecutionProviderFactory_CUDA(0)->CreateProvider();
+  return CreateExecutionProviderFactory_CUDA(0, /*enable_arena ? 1 : 0*/ true)->CreateProvider();
 #else
   return nullptr;
 #endif

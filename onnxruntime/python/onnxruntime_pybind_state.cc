@@ -109,10 +109,10 @@ std::string nuphar_settings;
 #endif
 
 namespace onnxruntime {
-std::shared_ptr<IExecutionProviderFactory> CreateExecutionProviderFactory_CPU(int use_arena);
-std::shared_ptr<IExecutionProviderFactory> CreateExecutionProviderFactory_CUDA(int device_id);
+std::shared_ptr<IExecutionProviderFactory> CreateExecutionProviderFactory_CPU(bool use_arena);
+std::shared_ptr<IExecutionProviderFactory> CreateExecutionProviderFactory_CUDA(int device_id, bool use_arena);
 std::shared_ptr<IExecutionProviderFactory> CreateExecutionProviderFactory_Tensorrt(int device_id);
-std::shared_ptr<IExecutionProviderFactory> CreateExecutionProviderFactory_Dnnl(int use_arena);
+std::shared_ptr<IExecutionProviderFactory> CreateExecutionProviderFactory_Dnnl(bool use_arena);
 std::shared_ptr<IExecutionProviderFactory> CreateExecutionProviderFactory_NGraph(const char* ng_backend_type);
 std::shared_ptr<IExecutionProviderFactory> CreateExecutionProviderFactory_OpenVINO(const char* device);
 std::shared_ptr<IExecutionProviderFactory> CreateExecutionProviderFactory_Nuphar(bool, const char*);
@@ -310,7 +310,8 @@ void RegisterExecutionProviders(InferenceSession* sess, const std::vector<std::s
     } else if (type == kCudaExecutionProvider) {
 #ifdef USE_CUDA
       // device id??
-      RegisterExecutionProvider(sess, *onnxruntime::CreateExecutionProviderFactory_CUDA(0));
+      // TODO: Provide way to specify use_arena. It's an EP specific option so doesn't really belong in session options
+      RegisterExecutionProvider(sess, *onnxruntime::CreateExecutionProviderFactory_CUDA(0, /*use_arena*/ true));
 #endif
     } else if (type == kDnnlExecutionProvider) {
 #ifdef USE_DNNL
@@ -404,7 +405,7 @@ void addGlobalMethods(py::module& m) {
         std::vector<std::shared_ptr<onnxruntime::IExecutionProviderFactory>> factories = {
             onnxruntime::CreateExecutionProviderFactory_CPU(0),
 #ifdef USE_CUDA
-            onnxruntime::CreateExecutionProviderFactory_CUDA(0),
+            onnxruntime::CreateExecutionProviderFactory_CUDA(0, 1),
 #endif
 #ifdef USE_DNNL
             onnxruntime::CreateExecutionProviderFactory_Dnnl(1),
