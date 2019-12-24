@@ -38,6 +38,7 @@ using onnxruntime::InputDefList;
 using onnxruntime::MLFloat16;
 using onnxruntime::OutputDefList;
 using onnxruntime::Tensor;
+using onnxruntime::DateTime;
 using onnxruntime::ToOrtStatus;
 using onnxruntime::common::Status;
 
@@ -327,6 +328,9 @@ ORT_API_STATUS_IMPL(OrtApis::CreateTensorWithDataAsOrtValue, _In_ const OrtMemor
       break;
     case ONNX_TENSOR_ELEMENT_DATA_TYPE_DOUBLE:
       ORT_API_RETURN_IF_ERROR(c_api_internal::CallCreateTensorImpl<double>(shape, shape_len, info, p_data, p_data_len, &tensor));
+      break;
+    case ONNX_TENSOR_ELEMENT_DATA_TYPE_DATE_TIME:
+      ORT_API_RETURN_IF_ERROR(c_api_internal::CallCreateTensorImpl<DateTime>(shape, shape_len, info, p_data, p_data_len, &tensor));
       break;
     case ONNX_TENSOR_ELEMENT_DATA_TYPE_COMPLEX64:
     case ONNX_TENSOR_ELEMENT_DATA_TYPE_COMPLEX128:
@@ -1123,7 +1127,8 @@ static OrtStatus* OrtCreateValueImplSeqHelper(const OrtValue* const* in, size_t 
 
     OrtStatus* st{};
     utils::MLTypeCallDispatcherRet<OrtStatus*, CallCreateValueImpl, bool, float, double,
-                                   MLFloat16, BFloat16, int8_t, uint8_t, int16_t, uint16_t, int32_t, uint32_t, int64_t, uint64_t>
+                                   MLFloat16, BFloat16, int8_t, uint8_t, int16_t, uint16_t, int32_t, uint32_t, int64_t, uint64_t,
+                                   DateTime>
         t_disp(one_tensor.GetElementType());
 
     st = t_disp.InvokeWithUnsupportedPolicy<UnsupportedReturnFailStatus>(one_tensor, tensors[idx]);

@@ -5,6 +5,7 @@
 
 #include <cstdint>
 #include <cstring>
+#include <iosfwd>
 #include <string>
 #include <type_traits>
 #include <map>
@@ -137,6 +138,8 @@ inline bool operator!=(const DateTime& left, const DateTime& right) {
 inline bool operator<(const DateTime& left, const DateTime& right) {
   return left.val < right.val;
 }
+
+std::ostream& operator<<(std::ostream&, const DateTime&);
 
 // DataTypeImpl pointer as unique DataTypeImpl identifier.
 using MLDataType = const DataTypeImpl*;
@@ -463,7 +466,7 @@ class TensorType : public TensorTypeBase {
  */
 
 template <typename elemT>
-class ExperiemntalTensorType : public TensorTypeBase {
+class ExperimentalTensorType : public TensorTypeBase {
  public:
   static_assert(data_types_internal::IsTensorContainedType<elemT>::value,
                 "Requires one of the tensor fundamental types");
@@ -477,9 +480,12 @@ class ExperiemntalTensorType : public TensorTypeBase {
   }
 
  private:
-  ExperiemntalTensorType() {
+  // The constructor takes domain and name strings for opaque
+  // type TypeProto so we can map it to the type system
+  // as a string that ONNX understands
+  ExperimentalTensorType(const char* domain, const char* name) {
     using namespace data_types_internal;
-    TensorElementTypeSetter<elemT>::SetTensorElementType(this->mutable_type_proto());
+    AssignOpaqueDomainName(domain, name, this->mutable_type_proto());
   }
 };
 
@@ -954,5 +960,16 @@ class PrimitiveDataType : public PrimitiveDataTypeBase {
   template <>                                             \
   MLDataType DataTypeImpl::GetType<CPPType>() {           \
     return OpaqueType<CPPType, Domain, Name>::Type();     \
+  }
+
+#define ORT_REGISTER_EXPERIMENTAL_TENSOR_TYPE(CPPType, Name)                         \
+  template <>                                                                        \
+  MLDataType ExperimentalTensorType<CPPType>::Type() {                               \
+    static ExperimentalTensorType<CPPType> exp_type("com.microsoft.mltensor", Name); \
+    return &exp_type;                                                                \
+  }                                                                                  \
+  template <>                                                                        \
+  MLDataType DataTypeImpl::GetTensorType<CPPType>() {                                \
+    return ExperimentalTensorType<CPPType>::Type();                                  \
   }
 }  // namespace onnxruntime

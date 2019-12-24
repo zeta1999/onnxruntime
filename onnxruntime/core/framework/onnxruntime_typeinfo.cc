@@ -17,6 +17,7 @@ using onnxruntime::MLFloat16;
 using onnxruntime::SparseTensor;
 using onnxruntime::Tensor;
 using onnxruntime::TensorShape;
+using onnxruntime::DateTime;
 
 namespace on = ONNX_NAMESPACE;
 
@@ -147,6 +148,8 @@ const DataTypeImpl* OrtTypeInfo::ElementTypeFromProto(int type) {
       return DataTypeImpl::GetType<MLFloat16>();
     case ONNX_NAMESPACE::TensorProto_DataType_BFLOAT16:
       return DataTypeImpl::GetType<BFloat16>();
+    case ONNX_NAMESPACE::TensorProto_DataType_DATE_TIME:
+      return DataTypeImpl::GetType<DateTime>();
 
     default:
       ORT_NOT_IMPLEMENTED(__FUNCTION__, ":tensor type ", type, " is not supported");

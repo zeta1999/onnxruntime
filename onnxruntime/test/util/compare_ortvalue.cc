@@ -176,6 +176,9 @@ std::pair<COMPARE_RESULT, std::string> CompareTwoTensors(const Tensor& outvalue,
     return IsResultExactlyMatch<int64_t>(outvalue, expected_tensor);
   } else if (outvalue.IsDataType<bool>()) {
     return IsResultExactlyMatch<bool>(outvalue, expected_tensor);
+  } else if (outvalue.IsDataType<DateTime>()) {
+    // EXPERIMENTAL
+    return IsResultExactlyMatch<DateTime>(outvalue, expected_tensor);
   } else if (outvalue.IsDataType<MLFloat16>()) {
     return CompareFloat16Result(outvalue, expected_tensor, per_sample_tolerance, relative_per_sample_tolerance,
                                 post_processing);
@@ -185,7 +188,7 @@ std::pair<COMPARE_RESULT, std::string> CompareTwoTensors(const Tensor& outvalue,
   } else {
     return std::make_pair(COMPARE_RESULT::NOT_SUPPORT, "");
   }
-}
+}  // namespace
 template <typename T>
 std::pair<COMPARE_RESULT, std::string> CompareSeqOfMapToFloat(const T& real_output_vector, const T& expected_value,
                                                               double per_sample_tolerance,
@@ -281,11 +284,12 @@ std::pair<COMPARE_RESULT, std::string> CompareOrtValue(const OrtValue& o, const 
     return std::make_pair(COMPARE_RESULT::TYPE_MISMATCH, "");
   }
   if (!o.IsTensor()) {
-    if (o.Type() == DataTypeImpl::GetType<VectorMapInt64ToFloat>()) {
+    utils::ContainerChecker c_checker(o.Type());
+    if (c_checker.IsSequenceOf<std::map<int64_t, float>>()) {
       return CompareSeqOfMapToFloat(o.Get<VectorMapInt64ToFloat>(), expected_mlvalue.Get<VectorMapInt64ToFloat>(),
                                     per_sample_tolerance, relative_per_sample_tolerance, post_processing);
     }
-    if (o.Type() == DataTypeImpl::GetType<VectorMapStringToFloat>()) {
+    if (c_checker.IsSequenceOf<std::map<std::string,float>>()) {
       return CompareSeqOfMapToFloat(o.Get<VectorMapStringToFloat>(), expected_mlvalue.Get<VectorMapStringToFloat>(),
                                     per_sample_tolerance, relative_per_sample_tolerance, post_processing);
     }
@@ -343,7 +347,7 @@ std::pair<COMPARE_RESULT, std::string> VerifyValueInfo(const ONNX_NAMESPACE::Val
     // Cannot do this check for tensor type.
     // For tensor type, o.Type() is TensorTypeBase*, but p points to a subclass of TensorTypeBase
     auto p = DataTypeImpl::TypeFromProto(v.type());
-    if (((OrtValue*)(const OrtValue*)o)->Type() != p) {
+    if (static_cast<const OrtValue*>(o)->Type() != p) {
       return std::make_pair(COMPARE_RESULT::TYPE_MISMATCH, "");
     }
   }

@@ -45,11 +45,6 @@ MLDataType DataTypeImpl::GetType<TensorSeq>() {
   return SequenceTensorTypeBase::Type();
 }
 
-//static bool IsTensorTypeScalar(const ONNX_NAMESPACE::TypeProto_Tensor& tensor_type_proto) {
-//  int sz = tensor_type_proto.shape().dim_size();
-//  return sz == 0 || sz == 1;
-//}
-
 namespace data_types_internal {
 
 template <typename T>
@@ -557,6 +552,8 @@ ORT_REGISTER_SEQ_TENSOR_TYPE(bool);
 ORT_REGISTER_SEQ_TENSOR_TYPE(std::string);
 ORT_REGISTER_SEQ_TENSOR_TYPE(MLFloat16);
 ORT_REGISTER_SEQ_TENSOR_TYPE(BFloat16);
+// Currently experimental
+ORT_REGISTER_EXPERIMENTAL_TENSOR_TYPE(DateTime, "date_time");
 
 ORT_REGISTER_SEQ(VectorMapStringToFloat);
 ORT_REGISTER_SEQ(VectorMapInt64ToFloat);
@@ -603,6 +600,8 @@ void RegisterAllProtos(const std::function<void(MLDataType)>& reg_fn) {
   REGISTER_TENSOR_PROTO(uint64_t, reg_fn);
   REGISTER_TENSOR_PROTO(MLFloat16, reg_fn);
   REGISTER_TENSOR_PROTO(BFloat16, reg_fn);
+  // Currently experimental
+  REGISTER_TENSOR_PROTO(DateTime, reg_fn);
 
   REGISTER_SPARSE_TENSOR_PROTO(int32_t, reg_fn);
   REGISTER_SPARSE_TENSOR_PROTO(float, reg_fn);
@@ -691,6 +690,9 @@ const char* DataTypeImpl::ToString(MLDataType type) {
         return "tensor(float16)";
       case TensorProto_DataType_BFLOAT16:
         return "tensor(bfloat16)";
+      // Experimental type
+      case TensorProto_DataType_DATE_TIME:
+        return "opaque(com.microsoft.mltensor,date_time)";
       default:
         break;
     }
@@ -732,6 +734,8 @@ const TensorTypeBase* DataTypeImpl::TensorTypeFromONNXEnum(int type) {
       return DataTypeImpl::GetTensorType<MLFloat16>()->AsTensorType();
     case TensorProto_DataType_BFLOAT16:
       return DataTypeImpl::GetTensorType<BFloat16>()->AsTensorType();
+    case TensorProto_DataType_DATE_TIME:
+      return DataTypeImpl::GetTensorType<DateTime>()->AsTensorType();
     default:
       ORT_NOT_IMPLEMENTED("tensor type ", type, " is not supported");
   }
@@ -958,6 +962,10 @@ std::ostream& operator<<(std::ostream& out, const DataTypeImpl* data_type) {
   return out << typeid(*data_type).name();
 }
 
+std::ostream& operator<<(std::ostream& os, const DateTime& dt) {
+  return os << dt.val;
+}
+
 namespace utils {
 
 ContainerChecker::ContainerChecker(MLDataType ml_type) {
@@ -978,18 +986,16 @@ ContainerChecker::ContainerChecker(MLDataType ml_type) {
           types_.emplace_back(ContainerType::kTensor, type_proto->tensor_type().elem_type());
           type_proto = nullptr;
           break;
-        case TypeProto::ValueCase::kMapType:
-          {
+        case TypeProto::ValueCase::kMapType: {
           const auto& map_type = type_proto->map_type();
           types_.emplace_back(ContainerType::kMap, map_type.key_type());
           // Move on handling the value
           type_proto = &map_type.value_type();
-          }
-          break;
+        } break;
         case TypeProto::ValueCase::kSequenceType:
-            types_.emplace_back(ContainerType::kSequence, TensorProto_DataType_UNDEFINED);
-            type_proto = &type_proto->sequence_type().elem_type();
-            break;
+          types_.emplace_back(ContainerType::kSequence, TensorProto_DataType_UNDEFINED);
+          type_proto = &type_proto->sequence_type().elem_type();
+          break;
         case TypeProto::ValueCase::kOpaqueType:
           // We do not handle this and terminate here
           types_.emplace_back(ContainerType::kOpaque,
