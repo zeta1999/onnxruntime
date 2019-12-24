@@ -95,18 +95,21 @@ TEST(AllocatorTest, CUDAAllocatorFallbackTest) {
 
   // initial allocation that sets the growth size for the next allocation
   size_t size = total / 2;
-  void* cuda_addr = cuda_arena->Alloc(size);
-  EXPECT_TRUE(cuda_addr);
+  void* cuda_addr_0 = cuda_arena->Alloc(size);
+  EXPECT_TRUE(cuda_addr_0);
 
   // this should trigger an allocation equal to the current total, which should fail initially and gradually fall back
   // to a smaller block.
   size_t next_size = 1024;
 
-  cuda_addr = cuda_arena->Alloc(next_size);
-  EXPECT_TRUE(cuda_addr);
+  void* cuda_addr_1 = cuda_arena->Alloc(next_size);
+  EXPECT_TRUE(cuda_addr_1);
 
   auto last_error = cudaGetLastError();
   EXPECT_EQ(last_error, cudaSuccess) << "Last error should be cleared if handled gracefully";
+
+  cuda_arena->Free(cuda_addr_0);
+  cuda_arena->Free(cuda_addr_1);
 }
 }  // namespace test
 }  // namespace onnxruntime
