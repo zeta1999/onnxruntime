@@ -74,7 +74,7 @@ TEST(AllocatorTest, CUDAAllocatorTest) {
 }
 
 // test that we fallback to smaller allocations if the growth of the arena exceeds the available memory
-TEST(AllocatorTest, DISABLED_CUDAAllocatorFallbackTest) {
+TEST(AllocatorTest, CUDAAllocatorFallbackTest) {
   int cuda_device_id = 0;
 
   size_t free = 0;
