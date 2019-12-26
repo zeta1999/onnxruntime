@@ -74,7 +74,7 @@ TEST(AllocatorTest, CUDAAllocatorTest) {
 }
 
 // test that we fallback to smaller allocations if the growth of the arena exceeds the available memory
-TEST(AllocatorTest, CUDAAllocatorFallbackTest) {
+TEST(AllocatorTest, DISABLED_CUDAAllocatorFallbackTest) {
   int cuda_device_id = 0;
 
   size_t free = 0;
@@ -104,12 +104,12 @@ TEST(AllocatorTest, CUDAAllocatorFallbackTest) {
 
   void* cuda_addr_1 = cuda_arena->Alloc(next_size);
   EXPECT_TRUE(cuda_addr_1);
+  cuda_arena->Free(cuda_addr_0);
+  cuda_arena->Free(cuda_addr_1);
+  cuda_arena = nullptr;
 
   auto last_error = cudaGetLastError();
   EXPECT_EQ(last_error, cudaSuccess) << "Last error should be cleared if handled gracefully";
-
-  cuda_arena->Free(cuda_addr_0);
-  cuda_arena->Free(cuda_addr_1);
 }
 }  // namespace test
 }  // namespace onnxruntime
