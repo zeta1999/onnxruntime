@@ -37,8 +37,6 @@ BFCArena::BFCArena(std::unique_ptr<IDeviceAllocator> resource_allocator,
 }
 
 BFCArena::~BFCArena() {
-  LOGS_DEFAULT(INFO) << "Freeing BFCArena for " << device_allocator_->Info().name;
-
   for (const auto& region : region_manager_.regions()) {
     device_allocator_->Free(region.ptr());
   }

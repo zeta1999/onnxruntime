@@ -22,7 +22,7 @@
 #include "core/platform/ort_mutex.h"
 
 #if __FreeBSD__
-#include <sys/thr.h> // Use thr_self() syscall under FreeBSD to get thread id
+#include <sys/thr.h>  // Use thr_self() syscall under FreeBSD to get thread id
 #endif
 
 namespace onnxruntime {
