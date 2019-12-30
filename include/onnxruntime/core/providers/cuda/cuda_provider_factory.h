@@ -12,6 +12,11 @@ extern "C" {
  */
 ORT_API_STATUS(OrtSessionOptionsAppendExecutionProvider_CUDA, _In_ OrtSessionOptions* options, int device_id);
 
+/**
+ * \param device_id cuda device id, starts from zero. enable_arena defaults to true.
+ */
+ORT_API_STATUS(OrtSessionOptionsAppendExecutionProvider_CUDA_NoArena, _In_ OrtSessionOptions* options, int device_id);
+
 #ifdef __cplusplus
 }
 #endif

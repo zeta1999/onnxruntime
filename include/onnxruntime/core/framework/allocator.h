@@ -90,7 +90,8 @@ struct OrtMemoryInfo {
   OrtAllocatorType type;
   OrtDevice device;
 
-  constexpr OrtMemoryInfo(const char* name_, OrtAllocatorType type_, OrtDevice device_ = OrtDevice(), int id_ = 0, OrtMemType mem_type_ = OrtMemTypeDefault)
+  constexpr OrtMemoryInfo(const char* name_, OrtAllocatorType type_, OrtDevice device_ = OrtDevice(), int id_ = 0,
+                          OrtMemType mem_type_ = OrtMemTypeDefault)
 #if (defined(__GNUC__) || defined(__clang__))
       __attribute__((nonnull))
 #endif
@@ -165,7 +166,7 @@ class IAllocator {
 
   /**
    * https://cwe.mitre.org/data/definitions/190.html
-   * \tparam alignment must be power of 2
+   * \param alignment must be power of 2
    * \param nmemb
    * \param size
    * \param out
@@ -216,9 +217,12 @@ class IAllocator {
       if (!CalcMemSizeForArray(count_or_bytes, sizeof(typename std::conditional<std::is_void<T>::value, void*, T>::type),
                                &alloc_size)) return nullptr;
     }
+
     return IAllocatorUniquePtr<T>{
         static_cast<T*>(allocator->Alloc(alloc_size)),  // allocate
-        [=](T* ptr) { allocator->Free(ptr); }};         // capture IAllocator so it's always valid, and use as deleter
+        [=](T* ptr) {                                   // capture 'allocator' by value so it's always valid
+          allocator->Free(ptr);
+        }};
   }
 };
 
@@ -297,11 +301,10 @@ class MiMallocAllocator : public IDeviceAllocator {
 
 #endif
 
-
 #ifdef USE_MIMALLOC
-  using TAllocator = MiMallocAllocator;
+using TAllocator = MiMallocAllocator;
 #else
-  using TAllocator = CPUAllocator;
+using TAllocator = CPUAllocator;
 #endif
 
 using AllocatorPtr = std::shared_ptr<IAllocator>;

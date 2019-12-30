@@ -110,7 +110,7 @@ std::string nuphar_settings;
 
 namespace onnxruntime {
 std::shared_ptr<IExecutionProviderFactory> CreateExecutionProviderFactory_CPU(int use_arena);
-std::shared_ptr<IExecutionProviderFactory> CreateExecutionProviderFactory_CUDA(int device_id);
+std::shared_ptr<IExecutionProviderFactory> CreateExecutionProviderFactory_CUDA(int device_id, bool use_arena = true);
 std::shared_ptr<IExecutionProviderFactory> CreateExecutionProviderFactory_Tensorrt(int device_id);
 std::shared_ptr<IExecutionProviderFactory> CreateExecutionProviderFactory_Dnnl(int use_arena);
 std::shared_ptr<IExecutionProviderFactory> CreateExecutionProviderFactory_NGraph(const char* ng_backend_type);
@@ -309,8 +309,9 @@ void RegisterExecutionProviders(InferenceSession* sess, const std::vector<std::s
 #endif
     } else if (type == kCudaExecutionProvider) {
 #ifdef USE_CUDA
-      // device id??
-      RegisterExecutionProvider(sess, *onnxruntime::CreateExecutionProviderFactory_CUDA(0));
+      // TODO: Do we need a way to be able to specify the device id?
+      // TODO: Provide way to specify use_arena. It's an EP specific option so doesn't really belong in session options
+      RegisterExecutionProvider(sess, *onnxruntime::CreateExecutionProviderFactory_CUDA(0, /*use_arena*/ true));
 #endif
     } else if (type == kDnnlExecutionProvider) {
 #ifdef USE_DNNL
@@ -404,7 +405,7 @@ void addGlobalMethods(py::module& m) {
         std::vector<std::shared_ptr<onnxruntime::IExecutionProviderFactory>> factories = {
             onnxruntime::CreateExecutionProviderFactory_CPU(0),
 #ifdef USE_CUDA
-            onnxruntime::CreateExecutionProviderFactory_CUDA(0),
+            onnxruntime::CreateExecutionProviderFactory_CUDA(0, true),
 #endif
 #ifdef USE_DNNL
             onnxruntime::CreateExecutionProviderFactory_Dnnl(1),

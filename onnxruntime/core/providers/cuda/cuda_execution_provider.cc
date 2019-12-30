@@ -47,14 +47,17 @@ ONNX_OPERATOR_KERNEL_EX(
 
 thread_local std::unique_ptr<CUDAExecutionProvider::PerThreadContextMap> CUDAExecutionProvider::per_thread_context_map_;
 
-CUDAExecutionProvider::PerThreadContext::PerThreadContext(int device_id) {
+CUDAExecutionProvider::PerThreadContext::PerThreadContext(int device_id, bool use_arena) {
   CUDA_CALL_THROW(cudaSetDevice(device_id));
   CUBLAS_CALL_THROW(cublasCreate(&cublas_handle_));
   CUDNN_CALL_THROW(cudnnCreate(&cudnn_handle_));
 
   DeviceAllocatorRegistrationInfo default_memory_info(
       {OrtMemTypeDefault,
-       [](int id) { return onnxruntime::make_unique<CUDAAllocator>(id, CUDA); }, std::numeric_limits<size_t>::max()});
+       [use_arena](int id) {
+         return onnxruntime::make_unique<CUDAAllocator>(id, CUDA, use_arena);
+       },
+       std::numeric_limits<size_t>::max()});
   allocator_ = CreateAllocator(default_memory_info, device_id);
 }
 
@@ -64,29 +67,50 @@ CUDAExecutionProvider::PerThreadContext::~PerThreadContext() {
 }
 
 CUDAExecutionProvider::CUDAExecutionProvider(const CUDAExecutionProviderInfo& info)
-    : IExecutionProvider{onnxruntime::kCudaExecutionProvider}, device_id_(info.device_id) {
+    : IExecutionProvider{onnxruntime::kCudaExecutionProvider}, device_id_(info.device_id), use_arena_(info.use_arena) {
   CUDA_CALL_THROW(cudaSetDevice(device_id_));
 
+  size_t free = 0;
+  size_t total = 0;
+  CUDA_CALL_THROW(cudaMemGetInfo(&free, &total));
+
+  bool use_arena = info.use_arena;
   DeviceAllocatorRegistrationInfo default_memory_info(
-      {OrtMemTypeDefault, [](int device_id) { return onnxruntime::make_unique<CUDAAllocator>(device_id, CUDA); }, std::numeric_limits<size_t>::max()});
+      {OrtMemTypeDefault,
+       [use_arena](int device_id) {
+         return onnxruntime::make_unique<CUDAAllocator>(device_id, CUDA, use_arena);
+       },
+       total});
+
   InsertAllocator(CreateAllocator(default_memory_info, device_id_));
 
   DeviceAllocatorRegistrationInfo pinned_memory_info(
-      {OrtMemTypeCPUOutput, [](int device_id) { return onnxruntime::make_unique<CUDAPinnedAllocator>(device_id, CUDA_PINNED); }, std::numeric_limits<size_t>::max()});
+      {OrtMemTypeCPUOutput,
+       [use_arena](int device_id) {
+         return onnxruntime::make_unique<CUDAPinnedAllocator>(device_id, CUDA_PINNED, use_arena);
+       },
+       std::numeric_limits<size_t>::max()});
+
   InsertAllocator(CreateAllocator(pinned_memory_info, CPU_ALLOCATOR_DEVICE_ID));
 
   // TODO: this is actually used for the cuda kernels which explicitly ask for inputs from CPU.
   // This will be refactored/removed when allocator and execution provider are decoupled.
-  DeviceAllocatorRegistrationInfo cpu_memory_info({OrtMemTypeCPUInput,
-                                                   [](int device_id) { return onnxruntime::make_unique<CPUAllocator>(
-                                                                           onnxruntime::make_unique<OrtMemoryInfo>(
-                                                                               "CUDA_CPU",
-                                                                               OrtAllocatorType::OrtDeviceAllocator,
-                                                                               OrtDevice(),
-                                                                               device_id,
-                                                                               OrtMemTypeCPUInput)); },
-                                                   std::numeric_limits<size_t>::max()});
-  InsertAllocator(CreateAllocator(cpu_memory_info, CPU_ALLOCATOR_DEVICE_ID));
+  DeviceAllocatorRegistrationInfo cpu_memory_info(
+      {OrtMemTypeCPUInput,
+       [](int device_id) { return onnxruntime::make_unique<CPUAllocator>(
+                               onnxruntime::make_unique<OrtMemoryInfo>(
+                                   "CUDA_CPU",
+                                   OrtAllocatorType::OrtDeviceAllocator,
+                                   OrtDevice(),
+                                   device_id,
+                                   OrtMemTypeCPUInput)); },
+       std::numeric_limits<size_t>::max()});
+
+  InsertAllocator(
+      use_arena
+          ? CreateAllocator(cpu_memory_info, CPU_ALLOCATOR_DEVICE_ID)
+          : std::shared_ptr<IArenaAllocator>(
+                onnxruntime::make_unique<DummyArena>(cpu_memory_info.factory(CPU_ALLOCATOR_DEVICE_ID))));
 }
 
 CUDAExecutionProvider::~CUDAExecutionProvider() {
@@ -116,7 +140,7 @@ CUDAExecutionProvider::PerThreadContext& CUDAExecutionProvider::GetPerThreadCont
     std::lock_guard<OrtMutex> lock(context_pool_mutex_);
     std::shared_ptr<PerThreadContext> ptc;
     if (retired_context_pool_.empty()) {
-      ptc = std::make_shared<PerThreadContext>(device_id_);
+      ptc = std::make_shared<PerThreadContext>(device_id_, use_arena_);
     } else {
       ptc = retired_context_pool_.back();
       retired_context_pool_.pop_back();

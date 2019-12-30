@@ -6,13 +6,18 @@
 #include "gtest/gtest.h"
 #include "cuda_runtime.h"
 #include "core/providers/cuda/cuda_allocator.h"
+#include "core/providers/cuda/cuda_common.h"
+#include "core/framework/bfc_arena.h"
+#include "test/util/include/default_providers.h"
 
 namespace onnxruntime {
 namespace test {
 TEST(AllocatorTest, CUDAAllocatorTest) {
   int cuda_device_id = 0;
-  DeviceAllocatorRegistrationInfo default_memory_info({OrtMemTypeDefault,
-                                                          [](int id) { return onnxruntime::make_unique<CUDAAllocator>(id, CUDA); }, std::numeric_limits<size_t>::max()});
+  DeviceAllocatorRegistrationInfo default_memory_info(
+      {OrtMemTypeDefault,
+       [](int id) { return onnxruntime::make_unique<CUDAAllocator>(id, CUDA); },
+       std::numeric_limits<size_t>::max()});
 
   auto cuda_arena = CreateAllocator(default_memory_info, cuda_device_id);
 
@@ -27,8 +32,10 @@ TEST(AllocatorTest, CUDAAllocatorTest) {
   auto cuda_addr = cuda_arena->Alloc(size);
   EXPECT_TRUE(cuda_addr);
 
-  DeviceAllocatorRegistrationInfo pinned_memory_info({OrtMemTypeCPUOutput,
-                                                         [](int) { return onnxruntime::make_unique<CUDAPinnedAllocator>(0, CUDA_PINNED); }, std::numeric_limits<size_t>::max()});
+  DeviceAllocatorRegistrationInfo pinned_memory_info(
+      {OrtMemTypeCPUOutput,
+       [](int) { return onnxruntime::make_unique<CUDAPinnedAllocator>(0, CUDA_PINNED); },
+       std::numeric_limits<size_t>::max()});
 
   auto pinned_allocator = CreateAllocator(pinned_memory_info);
 
@@ -66,6 +73,33 @@ TEST(AllocatorTest, CUDAAllocatorTest) {
   cpu_arena->Free(cpu_addr_b);
   cuda_arena->Free(cuda_addr);
   pinned_allocator->Free(pinned_addr);
+}
+
+TEST(AllocatorTest, CUDAAllocatorNoArenaTest) {
+  int cuda_device_id = 0;
+
+  size_t free = 0;
+  size_t total = 0;
+
+  CUDA_CALL_THROW(cudaSetDevice(cuda_device_id));
+  CUDA_CALL_THROW(cudaMemGetInfo(&free, &total));
+
+  DeviceAllocatorRegistrationInfo default_memory_info(
+      {OrtMemTypeDefault,
+       [](int id) { return onnxruntime::make_unique<CUDAAllocator>(id, CUDA, /*use_arena*/ false); },
+       total});
+
+  auto allocator = CreateAllocator(default_memory_info, cuda_device_id);
+
+  auto cuda_ep = DefaultCudaExecutionProvider(false);
+  auto cuda_alloc = cuda_ep->GetAllocator(0, OrtMemTypeDefault);
+  EXPECT_EQ(dynamic_cast<IArenaAllocator*>(cuda_alloc.get()), nullptr);
+
+  auto cuda_pinned_alloc = cuda_ep->GetAllocator(0, OrtMemTypeCPUOutput);
+  EXPECT_EQ(dynamic_cast<IArenaAllocator*>(cuda_pinned_alloc.get()), nullptr);
+
+  auto cpu_input_alloc = cuda_ep->GetAllocator(0, OrtMemTypeCPUInput);
+  EXPECT_NE(dynamic_cast<DummyArena*>(cpu_input_alloc.get()), nullptr);
 }
 }  // namespace test
 }  // namespace onnxruntime
