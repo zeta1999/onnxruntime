@@ -99,7 +99,7 @@ TEST(AllocatorTest, CUDAAllocatorNoArenaTest) {
   EXPECT_EQ(dynamic_cast<IArenaAllocator*>(cuda_pinned_alloc.get()), nullptr);
 
   auto cpu_input_alloc = cuda_ep->GetAllocator(0, OrtMemTypeCPUInput);
-  EXPECT_NE(dynamic_cast<DummyArena*>(cpu_input_alloc.get()), nullptr);
+  EXPECT_EQ(dynamic_cast<IArenaAllocator*>(cuda_pinned_alloc.get()), nullptr);
 }
 }  // namespace test
 }  // namespace onnxruntime

@@ -109,8 +109,7 @@ CUDAExecutionProvider::CUDAExecutionProvider(const CUDAExecutionProviderInfo& in
   InsertAllocator(
       use_arena
           ? CreateAllocator(cpu_memory_info, CPU_ALLOCATOR_DEVICE_ID)
-          : std::shared_ptr<IArenaAllocator>(
-                onnxruntime::make_unique<DummyArena>(cpu_memory_info.factory(CPU_ALLOCATOR_DEVICE_ID))));
+          : cpu_memory_info.factory(CPU_ALLOCATOR_DEVICE_ID));
 }
 
 CUDAExecutionProvider::~CUDAExecutionProvider() {

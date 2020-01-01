@@ -104,8 +104,11 @@ struct OrtMemoryInfo {
 
   // To make OrtMemoryInfo become a valid key in std map
   inline bool operator<(const OrtMemoryInfo& other) const {
-    if (type != other.type)
-      return type < other.type;
+    /* currently the allocator type is an implementation detail and we don't make any 
+       behavioral choices based on it, so exclude it from the key. we also don't expect
+       to have two allocators with the same name, one using an arena and one not.
+    if (alloc_type != other.alloc_type)
+      return alloc_type < other.alloc_type;*/
     if (mem_type != other.mem_type)
       return mem_type < other.mem_type;
     if (id != other.id)
@@ -120,14 +123,16 @@ struct OrtMemoryInfo {
          << " name:" << name
          << " id:" << id
          << " mem_type:" << mem_type
-         << " type:" << type
+         << " alloc_type:" << alloc_type
          << "]";
     return ostr.str();
   }
 };
 
 inline bool operator==(const OrtMemoryInfo& left, const OrtMemoryInfo& other) {
-  return left.mem_type == other.mem_type && left.type == other.type && left.id == other.id &&
+  return left.mem_type == other.mem_type &&
+         /* exclude type as per operator< comments left.alloc_type == other.alloc_type && */ 
+         left.id == other.id &&
          strcmp(left.name, other.name) == 0;
 }
 
