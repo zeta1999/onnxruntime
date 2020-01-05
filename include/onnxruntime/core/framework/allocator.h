@@ -253,50 +253,35 @@ bool IAllocator::CalcMemSizeForArrayWithAlignment(size_t nmemb, size_t size, siz
 */
 class IDeviceAllocator : public IAllocator {
  public:
+  IDeviceAllocator(const OrtMemoryInfo& info) : memory_info_(info) {}
   ~IDeviceAllocator() override = default;
   void* Alloc(size_t size) override = 0;
   void Free(void* p) override = 0;
-  const OrtMemoryInfo& Info() const override = 0;
-  virtual bool AllowsArena() const { return true; }
+  const OrtMemoryInfo& Info() const { return memory_info_; }
+  bool AllowsArena() const { return memory_info_.type == OrtAllocatorType::OrtArenaAllocator; }
+
+ private:
+  OrtMemoryInfo memory_info_;
 };
 
 class CPUAllocator : public IDeviceAllocator {
  public:
-  explicit CPUAllocator(std::unique_ptr<OrtMemoryInfo> memory_info) {
-    ORT_ENFORCE(nullptr != memory_info);
-    memory_info_ = std::move(memory_info);
-  }
+  explicit CPUAllocator(const OrtMemoryInfo& memory_info) : IDeviceAllocator(memory_info) {}
 
-  CPUAllocator() {
-    memory_info_ = onnxruntime::make_unique<OrtMemoryInfo>(CPU, OrtAllocatorType::OrtDeviceAllocator);
-  }
+  CPUAllocator() : IDeviceAllocator(OrtMemoryInfo(CPU, OrtAllocatorType::OrtDeviceAllocator)) {}
 
   void* Alloc(size_t size) override;
   void Free(void* p) override;
-  const OrtMemoryInfo& Info() const override;
-
- private:
-  std::unique_ptr<OrtMemoryInfo> memory_info_;
 };
 
 #ifdef USE_MIMALLOC
 class MiMallocAllocator : public IDeviceAllocator {
  public:
-  explicit MiMallocAllocator(std::unique_ptr<OrtMemoryInfo> memory_info) {
-    ORT_ENFORCE(nullptr != memory_info);
-    memory_info_ = std::move(memory_info);
-  }
-
-  MiMallocAllocator() {
-    memory_info_ = std::make_unique<OrtMemoryInfo>(CPU, OrtAllocatorType::OrtDeviceAllocator);
-  }
+  explicit MiMallocAllocator(const OrtMemoryInfo& memory_info) : IDeviceAllocator(memory_info) {}
+  MiMallocAllocator() : IDeviceAllocator(OrtMemoryInfo(CPU, OrtAllocatorType::OrtDeviceAllocator)) {}
 
   void* Alloc(size_t size) override;
   void Free(void* p) override;
-  const OrtMemoryInfo& Info() const override;
-
- private:
-  std::unique_ptr<OrtMemoryInfo> memory_info_;
 };
 
 #endif
