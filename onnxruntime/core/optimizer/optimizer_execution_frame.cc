@@ -22,7 +22,9 @@ OptimizerExecutionFrame::Info::Info(const std::vector<const Node*>& nodes,
   // Create CPU execution provider
   // For now, CPU execution provider will be created every time when initializing Info.
   // Later, it will be changed to pass by Info ctor.
-  cpu_execution_provider_ = onnxruntime::make_unique<CPUExecutionProvider>(CPUExecutionProviderInfo());
+  CPUExecutionProviderInfo info;
+  info.create_arena = false;
+  cpu_execution_provider_ = onnxruntime::make_unique<CPUExecutionProvider>(info);
   allocator_ptr_ = cpu_execution_provider_->GetAllocator(device_id_, mem_type_);
   ORT_ENFORCE(allocator_ptr_ != nullptr, "Failed to get allocator for optimizer");
 

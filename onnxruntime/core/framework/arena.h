@@ -18,6 +18,7 @@ class IArenaAllocator : public IAllocator {
   ~IArenaAllocator() override = default;
   // Alloc call need to be thread safe.
   void* Alloc(size_t size) override = 0;
+
   // The chunck allocated by Reserve call won't be reused with other request.
   // It will be return to the devices when it is freed.
   // Reserve call need to be thread safe.
@@ -90,22 +91,22 @@ struct AllocatorStats {
   AllocatorStats() { Clear(); }
 
   void Clear() {
-    this->num_allocs = 0;
-    this->bytes_in_use = 0;
-    this->max_bytes_in_use = 0;
-    this->max_alloc_size = 0;
-    this->bytes_limit = 0;
-    this->total_allocated_bytes = 0;
+    num_allocs = 0;
+    bytes_in_use = 0;
+    total_allocated_bytes = 0;
+    max_bytes_in_use = 0;
+    max_alloc_size = 0;
+    bytes_limit = 0;
   }
 
   std::string DebugString() const {
     std::ostringstream ss;
-    ss << "Limit:           " << this->bytes_limit << "\n"
-       << "InUse:          " << this->bytes_in_use << "\n"
-       << "TotalAllocated: " << this->total_allocated_bytes << "\n"
-       << "MaxInUse:       " << this->max_bytes_in_use << "\n"
-       << "NumAllocs:      " << this->num_allocs << "\n"
-       << "MaxAllocSize:   " << this->max_alloc_size << "\n";
+    ss << "Limit:          " << bytes_limit << "\n"
+       << "InUse:          " << bytes_in_use << "\n"
+       << "TotalAllocated: " << total_allocated_bytes << "\n"
+       << "MaxInUse:       " << max_bytes_in_use << "\n"
+       << "NumAllocs:      " << num_allocs << "\n"
+       << "MaxAllocSize:   " << max_alloc_size << "\n";
     return ss.str();
   }
 };

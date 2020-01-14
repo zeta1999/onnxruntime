@@ -58,6 +58,8 @@
 #include "core/util/thread_utils.h"
 #include "core/session/inference_session_utils.h"
 
+#include "core/framework/bfc_arena.h"
+
 using namespace ONNX_NAMESPACE;
 
 namespace onnxruntime {
@@ -1062,6 +1064,11 @@ Status InferenceSession::Run(const RunOptions& run_options, const std::vector<st
   // info all execution providers InferenceSession:Run ended
   for (auto& xp : execution_providers_) {
     ORT_CHECK_AND_SET_RETVAL(xp->OnRunEnd());
+    for (const auto& alloc : xp->GetAllocators()) {
+      const BFCArena& arena_alloc = dynamic_cast<const BFCArena&>(*alloc);
+      AllocatorStats stats;
+      arena_alloc.GetStats(&stats);
+    }
   }
 
   --current_num_runs_;

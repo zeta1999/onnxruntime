@@ -50,7 +50,7 @@ BFCArena::~BFCArena() {
   }
 }
 
-BFCArena::Chunk* BFCArena::ChunkFromHandle(ChunkHandle h) {
+const BFCArena::Chunk* BFCArena::ChunkFromHandle(ChunkHandle h) const {
   ORT_ENFORCE(h < chunks_.size());
   return &(chunks_[h]);
 }
@@ -188,6 +188,9 @@ void* BFCArena::Reserve(size_t size) {
     return nullptr;
 
   std::lock_guard<OrtMutex> lock(lock_);
+  LOGS_DEFAULT(INFO) << "Reserve for " << device_allocator_->Info().name
+                     << " of size:" << size;
+
   void* ptr = device_allocator_->Alloc(size);
   ORT_ENFORCE(reserved_chunks_.find(ptr) == reserved_chunks_.end());
   reserved_chunks_.insert(std::pair<void*, size_t>(ptr, size));
@@ -199,19 +202,19 @@ void* BFCArena::Reserve(size_t size) {
   return ptr;
 }
 
-size_t BFCArena::RequestedSize(const void* ptr) {
+size_t BFCArena::RequestedSize(const void* ptr) const {
   std::lock_guard<OrtMutex> lock(lock_);
   BFCArena::ChunkHandle h = region_manager_.get_handle(ptr);
   ORT_ENFORCE(h != kInvalidChunkHandle);
-  BFCArena::Chunk* c = ChunkFromHandle(h);
+  const BFCArena::Chunk* c = ChunkFromHandle(h);
   return c->requested_size;
 }
 
-size_t BFCArena::AllocatedSize(const void* ptr) {
+size_t BFCArena::AllocatedSize(const void* ptr) const {
   std::lock_guard<OrtMutex> lock(lock_);
   BFCArena::ChunkHandle h = region_manager_.get_handle(ptr);
   ORT_ENFORCE(h != kInvalidChunkHandle);
-  BFCArena::Chunk* c = ChunkFromHandle(h);
+  const BFCArena::Chunk* c = ChunkFromHandle(h);
   return c->size;
 }
 
@@ -221,6 +224,7 @@ void* BFCArena::AllocateRawInternal(size_t num_bytes,
     LOGS_DEFAULT(VERBOSE) << "tried to allocate 0 bytes";
     return nullptr;
   }
+
   // First, always allocate memory of at least kMinAllocationSize
   // bytes, and always allocate multiples of kMinAllocationSize bytes
   // so all memory addresses are nicely byte aligned.
@@ -241,6 +245,10 @@ void* BFCArena::AllocateRawInternal(size_t num_bytes,
   // Try to extend
   if (Extend(rounded_bytes)) {
     ptr = FindChunkPtr(bin_num, rounded_bytes, num_bytes);
+
+    // TEMP
+    DumpMemoryLog(rounded_bytes);
+
     if (ptr != nullptr) {
       return ptr;
     }
@@ -259,9 +267,10 @@ void* BFCArena::AllocateRawInternal(size_t num_bytes,
   return nullptr;
 }
 
-void BFCArena::GetStats(AllocatorStats* stats) {
+void BFCArena::GetStats(AllocatorStats* stats) const {
   std::lock_guard<OrtMutex> lock(lock_);
   *stats = stats_;
+  DumpMemoryLog(0);
 }
 
 void* BFCArena::FindChunkPtr(BinNum bin_num, size_t rounded_bytes, size_t num_bytes) {
@@ -283,7 +292,7 @@ void* BFCArena::FindChunkPtr(BinNum bin_num, size_t rounded_bytes, size_t num_by
         // If we can break the size of the chunk into two reasonably large
         // pieces, do so.  In any case don't waste more than
         // kMaxInternalFragmentation bytes on padding this alloc.
-        const int64_t kMaxInternalFragmentation = 1024 * 1024;  // 1MB
+        const int64_t kMaxInternalFragmentation = 1 * 1024 * 1024;  // 1MB
         if (chunk->size >= rounded_bytes * 2 ||
             static_cast<int64_t>(chunk->size) - rounded_bytes >= kMaxInternalFragmentation) {
           SplitChunk(h, rounded_bytes);
@@ -299,10 +308,11 @@ void* BFCArena::FindChunkPtr(BinNum bin_num, size_t rounded_bytes, size_t num_by
         // Update stats.
         ++stats_.num_allocs;
         stats_.bytes_in_use += chunk->size;
-        stats_.max_bytes_in_use =
-            std::max(stats_.max_bytes_in_use, stats_.bytes_in_use);
-        stats_.max_alloc_size =
-            std::max<std::size_t>(stats_.max_alloc_size, chunk->size);
+        stats_.max_bytes_in_use = std::max(stats_.max_bytes_in_use, stats_.bytes_in_use);
+        stats_.max_alloc_size = std::max<std::size_t>(stats_.max_alloc_size, chunk->size);
+
+        //LOGS_DEFAULT(INFO) << "Stats for " << device_allocator_->Info().name << ":\n"
+        //                   << stats_.DebugString();
 
         return chunk->ptr;
       }
@@ -485,8 +495,7 @@ void BFCArena::FreeAndMaybeCoalesce(BFCArena::ChunkHandle h) {
   InsertFreeChunkIntoBin(chunk_to_reassign);
 }
 
-std::array<BFCArena::BinDebugInfo, BFCArena::kNumBins>
-BFCArena::get_bin_debug_info() {
+std::array<BFCArena::BinDebugInfo, BFCArena::kNumBins> BFCArena::GetBinDebugInfo() const {
   std::array<BinDebugInfo, kNumBins> bin_infos;
   for (const auto& region : region_manager_.regions()) {
     ChunkHandle h = region_manager_.get_handle(region.ptr());
@@ -501,7 +510,7 @@ BFCArena::get_bin_debug_info() {
         bin_info.total_requested_bytes_in_use += c->requested_size;
         bin_info.total_chunks_in_use++;
       } else {
-        Bin* bin = BinFromIndex(bin_num);
+        const Bin* bin = BinFromIndex(bin_num);
         ORT_ENFORCE(bin->free_chunks.count(h) == 1);
         ORT_ENFORCE(c->bin_num == bin_num);
       }
@@ -511,14 +520,14 @@ BFCArena::get_bin_debug_info() {
   return bin_infos;
 }
 
-void BFCArena::DumpMemoryLog(size_t num_bytes) {
-  const std::array<BinDebugInfo, kNumBins> bin_infos = get_bin_debug_info();
+void BFCArena::DumpMemoryLog(size_t num_bytes) const {
+  const std::array<BinDebugInfo, kNumBins> bin_infos = GetBinDebugInfo();
   LOGS_DEFAULT(INFO) << "Allocator:" << device_allocator_->Info().name;
   LOGS_DEFAULT(INFO) << "Bin size: Chunks in_use/total (if not zero). Allocated bytes in_use/total. Requested bytes.";
 
   size_t waste = 0;
   for (BinNum bin_num = 0; bin_num < kNumBins; bin_num++) {
-    Bin* b = BinFromIndex(bin_num);
+    const Bin* b = BinFromIndex(bin_num);
     const BinDebugInfo& bin_info = bin_infos[bin_num];
     ORT_ENFORCE(b->free_chunks.size() ==
                 bin_info.total_chunks_in_bin - bin_info.total_chunks_in_use);
@@ -540,19 +549,18 @@ void BFCArena::DumpMemoryLog(size_t num_bytes) {
 
   // Find the bin that we would have liked to allocate in, so we
   // can get some further analysis about fragmentation.
-  Bin* b = BinForSize(num_bytes);
+  const Bin* b = BinForSize(num_bytes);
 
   LOGS_DEFAULT(INFO) << "Bin for " << num_bytes
                      << " bytes has max bytes of " << b->bin_size
                      << ", Chunk State: ";
 
   for (ChunkHandle h : b->free_chunks) {
-    Chunk* c = ChunkFromHandle(h);
+    const Chunk* c = ChunkFromHandle(h);
     LOGS_DEFAULT(INFO) << "  " << c->DebugString(this, true);
   }
 
-  // Next show the chunks that are in use, and also summarize their
-  // number by size.
+  // Next show the chunks that are in use, and also summarize their number by size.
   LOGS_DEFAULT(INFO) << "Overall chunks summary:";
   std::map<size_t, int> in_use_by_size;
   for (const auto& region : region_manager_.regions()) {

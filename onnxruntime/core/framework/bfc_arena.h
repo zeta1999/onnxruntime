@@ -79,11 +79,11 @@ class BFCArena : public IArenaAllocator {
     return device_allocator_->CreateFence(session_state);
   }
 
-  void GetStats(AllocatorStats* stats);
+  void GetStats(AllocatorStats* stats) const;
 
-  size_t RequestedSize(const void* ptr);
+  size_t RequestedSize(const void* ptr) const;
 
-  size_t AllocatedSize(const void* ptr);
+  size_t AllocatedSize(const void* ptr) const;
 
  private:
   void* AllocateRawInternal(size_t num_bytes, bool dump_log_on_failure);
@@ -114,7 +114,7 @@ class BFCArena : public IArenaAllocator {
 
     // allocation_id is set to -1 when the chunk is not in use. It is assigned a
     // value greater than zero before the chunk is returned from
-    // AllocateRaw, and this value is unique among values assigned by
+    // AllocateRaw, and this value is unique among values assigned by0
     // the parent allocator.
     int64_t allocation_id = -1;
     void* ptr = nullptr;  // pointer to granted subbuffer.
@@ -134,16 +134,16 @@ class BFCArena : public IArenaAllocator {
 
     bool in_use() const { return allocation_id != -1; }
 
-    std::string DebugString(BFCArena* a, bool recurse) {
+    std::string DebugString(const BFCArena* a, bool recurse) const {
       std::ostringstream ss;
       ss << "  Size: " << size << " | Requested Size: " << requested_size << " | in_use: " << in_use();
       if (recurse && prev != BFCArena::kInvalidChunkHandle) {
-        Chunk* p = a->ChunkFromHandle(prev);
+        const Chunk* p = a->ChunkFromHandle(prev);
         ss << ", prev: " << p->DebugString(a, false);
       }
 
       if (recurse && next != BFCArena::kInvalidChunkHandle) {
-        Chunk* n = a->ChunkFromHandle(next);
+        const Chunk* n = a->ChunkFromHandle(next);
         ss << ", next: " << n->DebugString(a, false);
       }
       return ss.str();
@@ -346,12 +346,17 @@ class BFCArena : public IArenaAllocator {
   // Removes the chunk metadata represented by 'h'.
   void DeleteChunk(ChunkHandle h);
 
-  void DumpMemoryLog(size_t num_bytes);
+  void DumpMemoryLog(size_t num_bytes) const;
 
   ChunkHandle AllocateChunk();
   void DeallocateChunk(ChunkHandle h);
 
-  Chunk* ChunkFromHandle(ChunkHandle h);
+  const Chunk* ChunkFromHandle(ChunkHandle h) const;
+
+  Chunk* ChunkFromHandle(ChunkHandle h) {
+    const BFCArena* const_this = this;
+    return const_cast<Chunk*>(const_this->ChunkFromHandle(h));
+  }
 
   // Information about a Bin that is useful for debugging.
   struct BinDebugInfo {
@@ -363,12 +368,12 @@ class BFCArena : public IArenaAllocator {
   };
 
   // Computes and returns a BinDebugInfo for each Bin.
-  std::array<BinDebugInfo, kNumBins> get_bin_debug_info();
+  std::array<BinDebugInfo, kNumBins> GetBinDebugInfo() const;
 
   // Structures immutable after construction
   size_t memory_limit_ = 0;
 
-  int Log2FloorNonZeroSlow(uint64_t n) {
+  static int Log2FloorNonZeroSlow(uint64_t n) {
     int r = 0;
     while (n > 0) {
       r++;
@@ -378,7 +383,7 @@ class BFCArena : public IArenaAllocator {
   }
 
   // Returns floor(log2(n)).
-  int Log2FloorNonZero(uint64_t n) {
+  static int Log2FloorNonZero(uint64_t n) {
 #if defined(__GNUC__)
     return 63 ^ __builtin_clzll(n);
 #elif defined(PLATFORM_WINDOWS)
@@ -402,20 +407,26 @@ class BFCArena : public IArenaAllocator {
 
   // Map from bin size to Bin
   Bin* BinFromIndex(BinNum index) {
-    return reinterpret_cast<Bin*>(&(bins_space_[index * sizeof(Bin)]));
+    const BFCArena* const_this = this;
+    return const_cast<Bin*>(const_this->BinFromIndex(index));
   }
 
-  size_t BinNumToSize(BinNum index) {
+  const Bin* BinFromIndex(BinNum index) const {
+    return reinterpret_cast<const Bin*>(&(bins_space_[index * sizeof(Bin)]));
+  }
+
+  static size_t BinNumToSize(BinNum index) {
     return static_cast<size_t>(256) << index;
   }
 
-  BinNum BinNumForSize(size_t bytes) {
+  static BinNum BinNumForSize(size_t bytes) {
     uint64_t v = std::max<size_t>(bytes, 256) >> kMinAllocationBits;
     int b = std::min(kNumBins - 1, Log2FloorNonZero(v));
     return b;
   }
 
   Bin* BinForSize(size_t bytes) { return BinFromIndex(BinNumForSize(bytes)); }
+  const Bin* BinForSize(size_t bytes) const { return BinFromIndex(BinNumForSize(bytes)); }
 
   char bins_space_[sizeof(Bin) * kNumBins];
 

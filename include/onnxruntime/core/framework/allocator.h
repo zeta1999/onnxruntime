@@ -297,11 +297,10 @@ class MiMallocAllocator : public IDeviceAllocator {
 
 #endif
 
-
 #ifdef USE_MIMALLOC
-  using TAllocator = MiMallocAllocator;
+using TAllocator = MiMallocAllocator;
 #else
-  using TAllocator = CPUAllocator;
+using TAllocator = CPUAllocator;
 #endif
 
 using AllocatorPtr = std::shared_ptr<IAllocator>;
