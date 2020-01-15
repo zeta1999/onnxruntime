@@ -104,11 +104,8 @@ struct OrtMemoryInfo {
 
   // To make OrtMemoryInfo become a valid key in std map
   bool operator<(const OrtMemoryInfo& other) const {
-    /* currently the allocator type is an implementation detail and we don't make any 
-       behavioral choices based on it, so exclude it from the key. we also don't expect
-       to have two allocators with the same name, one using an arena and one not.
-    if (type != other.type)
-      return type < other.type;
+    if (alloc_type != other.alloc_type)
+      return alloc_type < other.alloc_type;
     if (mem_type != other.mem_type)
       return mem_type < other.mem_type;
     if (id != other.id)
