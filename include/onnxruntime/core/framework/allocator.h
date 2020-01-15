@@ -152,10 +152,11 @@ using IAllocatorUniquePtr = std::unique_ptr<T, std::function<void(T*)>>;
 
 class IAllocator {
  public:
+  IAllocator(const OrtMemoryInfo& info) : memory_info_(info) {}
   virtual ~IAllocator() = default;
   virtual void* Alloc(size_t size) = 0;
   virtual void Free(void* p) = 0;
-  virtual const OrtMemoryInfo& Info() const = 0;
+  const OrtMemoryInfo& Info() const { return memory_info_; };
 
   /**
      optional CreateFence interface, as provider like DML has its own fence
@@ -227,6 +228,9 @@ class IAllocator {
           allocator->Free(ptr);
         }};
   }
+
+ private:
+  OrtMemoryInfo memory_info_;
 };
 
 template <size_t alignment>
@@ -260,15 +264,11 @@ bool IAllocator::CalcMemSizeForArrayWithAlignment(size_t nmemb, size_t size, siz
 */
 class IDeviceAllocator : public IAllocator {
  public:
-  IDeviceAllocator(const OrtMemoryInfo& info) : memory_info_(info) {}
+  IDeviceAllocator(const OrtMemoryInfo& info) : IAllocator(info) {}
   ~IDeviceAllocator() override = default;
   void* Alloc(size_t size) override = 0;
   void Free(void* p) override = 0;
-  const OrtMemoryInfo& Info() const { return memory_info_; }
-  bool AllowsArena() const { return memory_info_.type == OrtAllocatorType::OrtArenaAllocator; }
-
- private:
-  OrtMemoryInfo memory_info_;
+  bool AllowsArena() const { return Info().alloc_type == OrtAllocatorType::OrtArenaAllocator; }
 };
 
 class CPUAllocator : public IDeviceAllocator {

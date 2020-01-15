@@ -19,7 +19,8 @@ TEST(AllocatorTest, CUDAAllocatorTest) {
        [](int id) { return onnxruntime::make_unique<CUDAAllocator>(id, CUDA); },
        std::numeric_limits<size_t>::max()});
 
-  auto cuda_arena = CreateAllocator(default_memory_info, cuda_device_id);
+  bool use_arena = true;
+  auto cuda_arena = CreateAllocator(default_memory_info, use_arena, cuda_device_id);
 
   size_t size = 1024;
 
@@ -37,7 +38,7 @@ TEST(AllocatorTest, CUDAAllocatorTest) {
        [](int) { return onnxruntime::make_unique<CUDAPinnedAllocator>(0, CUDA_PINNED); },
        std::numeric_limits<size_t>::max()});
 
-  auto pinned_allocator = CreateAllocator(pinned_memory_info);
+  auto pinned_allocator = CreateAllocator(pinned_memory_info, use_arena);
 
   EXPECT_STREQ(pinned_allocator->Info().name, CUDA_PINNED);
   EXPECT_EQ(pinned_allocator->Info().id, 0);
