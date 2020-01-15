@@ -85,9 +85,9 @@ struct OrtMemoryInfo {
 
   // use string for name, so we could have customized allocator in execution provider.
   const char* name;
-  int id;
-  OrtMemType mem_type;
-  OrtAllocatorType type;
+  int id = -1;
+  OrtMemType mem_type = OrtMemTypeDefault;
+  OrtAllocatorType alloc_type = Invalid;
   OrtDevice device;
 
   constexpr OrtMemoryInfo(const char* name_, OrtAllocatorType type_, OrtDevice device_ = OrtDevice(), int id_ = 0,
@@ -98,17 +98,17 @@ struct OrtMemoryInfo {
       : name(name_),
         id(id_),
         mem_type(mem_type_),
-        type(type_),
+        alloc_type(type_),
         device(device_) {
   }
 
   // To make OrtMemoryInfo become a valid key in std map
-  inline bool operator<(const OrtMemoryInfo& other) const {
+  bool operator<(const OrtMemoryInfo& other) const {
     /* currently the allocator type is an implementation detail and we don't make any 
        behavioral choices based on it, so exclude it from the key. we also don't expect
        to have two allocators with the same name, one using an arena and one not.
-    if (alloc_type != other.alloc_type)
-      return alloc_type < other.alloc_type;*/
+    if (type != other.type)
+      return type < other.type;
     if (mem_type != other.mem_type)
       return mem_type < other.mem_type;
     if (id != other.id)
@@ -117,7 +117,7 @@ struct OrtMemoryInfo {
     return strcmp(name, other.name) < 0;
   }
 
-  inline std::string ToString() const {
+  std::string ToString() const {
     std::ostringstream ostr;
     ostr << "OrtMemoryInfo: ["
          << " name:" << name
@@ -131,7 +131,7 @@ struct OrtMemoryInfo {
 
 inline bool operator==(const OrtMemoryInfo& left, const OrtMemoryInfo& other) {
   return left.mem_type == other.mem_type &&
-         /* exclude type as per operator< comments left.alloc_type == other.alloc_type && */ 
+         left.alloc_type == other.alloc_type &&
          left.id == other.id &&
          strcmp(left.name, other.name) == 0;
 }
@@ -219,7 +219,8 @@ class IAllocator {
     if (!std::is_void<T>::value) {
       // sizeof(void) isn't valid, but the compiler isn't smart enough to ignore that this line isn't
       // reachable if T is void. use std::conditional to 'use' void* in the sizeof call
-      if (!CalcMemSizeForArray(count_or_bytes, sizeof(typename std::conditional<std::is_void<T>::value, void*, T>::type),
+      if (!CalcMemSizeForArray(count_or_bytes,
+                               sizeof(typename std::conditional<std::is_void<T>::value, void*, T>::type),
                                &alloc_size)) return nullptr;
     }
 
@@ -233,22 +234,26 @@ class IAllocator {
 
 template <size_t alignment>
 bool IAllocator::CalcMemSizeForArrayWithAlignment(size_t nmemb, size_t size, size_t* out) noexcept {
-  static constexpr size_t max_allowed = (static_cast<size_t>(1) << (static_cast<size_t>(std::numeric_limits<size_t>::digits >> 1))) - alignment;
+  static constexpr size_t max_allowed = (size_t(1) << (size_t(std::numeric_limits<size_t>::digits >> 1))) - alignment;
   static constexpr size_t max_size = std::numeric_limits<size_t>::max() - alignment;
   static constexpr size_t alignment_mask = alignment - 1;
+
   //Indeed, we only need to check if max_size / nmemb < size
   //max_allowed is for avoiding unnecessary DIV.
   if (nmemb >= max_allowed && max_size / nmemb < size) {
     return false;
   }
+
   if (size >= max_allowed &&
       nmemb > 0 && max_size / nmemb < size) {
     return false;
   }
+
   if (alignment == 0)
     *out = size * nmemb;
   else
     *out = (size * nmemb + alignment_mask) & ~static_cast<size_t>(alignment_mask);
+
   return true;
 }
 

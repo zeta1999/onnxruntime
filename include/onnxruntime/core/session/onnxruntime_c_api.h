@@ -193,6 +193,7 @@ struct OrtCustomOp;
 typedef struct OrtCustomOp OrtCustomOp;
 
 typedef enum OrtAllocatorType {
+  Invalid = -1,
   OrtDeviceAllocator = 0,
   OrtArenaAllocator = 1
 } OrtAllocatorType;
@@ -217,7 +218,7 @@ struct OrtApiBase {
 };
 typedef struct OrtApiBase OrtApiBase;
 
-ORT_EXPORT const OrtApiBase* ORT_API_CALL OrtGetApiBase() NO_EXCEPTION;
+ORT_EXPORT const OrtApiBase* ORT_API_CALL OrtGetApiBase(void) NO_EXCEPTION;
 
 struct OrtApi {
   /**
@@ -240,8 +241,8 @@ struct OrtApi {
       NO_EXCEPTION ORT_ALL_ARGS_NONNULL;
 
   /**
-     * \param out Should be freed by `OrtReleaseEnv` after use
-     */
+   * \param out Should be freed by `OrtReleaseEnv` after use
+   */
   OrtStatus*(ORT_API_CALL* CreateEnvWithCustomLogger)(OrtLoggingFunction logging_function,
                                                       _In_opt_ void* logger_param, OrtLoggingLevel default_warning_level,
                                                       _In_ const char* logid,
@@ -253,7 +254,7 @@ struct OrtApi {
 
   // TODO: document the path separator convention? '/' vs '\'
   // TODO: should specify the access characteristics of model_path. Is this read only during the
-  // execution of OrtCreateSession, or does the OrtSession retain a handle to the file/directory
+  // execution of CreateSession, or does the OrtSession retain a handle to the file/directory
   // and continue to access throughout the OrtSession lifetime?
   //  What sort of access is needed to model_path : read or read/write?
   OrtStatus*(ORT_API_CALL* CreateSession)(_In_ const OrtEnv* env, _In_ const ORTCHAR_T* model_path,
@@ -470,7 +471,7 @@ struct OrtApi {
   OrtStatus*(ORT_API_CALL* SetTensorElementType)(_Inout_ OrtTensorTypeAndShapeInfo*, enum ONNXTensorElementDataType type)NO_EXCEPTION;
 
   /**
- * \param info Created from OrtCreateTensorTypeAndShapeInfo() function
+ * \param info Created from CreateTensorTypeAndShapeInfo() function
  * \param dim_values An array with length of `dim_count`. Its elements can contain negative values.
  * \param dim_count length of dim_values
  */
