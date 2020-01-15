@@ -97,13 +97,14 @@ CUDAExecutionProvider::CUDAExecutionProvider(const CUDAExecutionProviderInfo& in
   // This will be refactored/removed when allocator and execution provider are decoupled.
   DeviceAllocatorRegistrationInfo cpu_memory_info(
       {OrtMemTypeCPUInput,
-       [](int device_id) { return onnxruntime::make_unique<CPUAllocator>(
-                               onnxruntime::make_unique<OrtMemoryInfo>(
-                                   "CUDA_CPU",
-                                   OrtAllocatorType::OrtDeviceAllocator,
-                                   OrtDevice(),
-                                   device_id,
-                                   OrtMemTypeCPUInput)); },
+       [use_arena](int device_id) {
+         return onnxruntime::make_unique<CPUAllocator>(
+             OrtMemoryInfo("CUDA_CPU",
+                           use_arena ? OrtAllocatorType::OrtArenaAllocator : OrtAllocatorType::OrtDeviceAllocator,
+                           OrtDevice(),
+                           device_id,
+                           OrtMemTypeCPUInput));
+       },
        std::numeric_limits<size_t>::max()});
 
   InsertAllocator(
