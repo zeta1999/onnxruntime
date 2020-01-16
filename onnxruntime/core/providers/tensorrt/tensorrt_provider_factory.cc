@@ -31,7 +31,7 @@ std::unique_ptr<IExecutionProvider> TensorrtProviderFactory::CreateProvider() {
 
 std::shared_ptr<IExecutionProviderFactory> CreateExecutionProviderFactory_Tensorrt(int device_id,
                                                                                    bool enable_cuda_mem_arena = true) {
-  return std::make_shared<onnxruntime::TensorrtProviderFactory>(device_id);
+  return std::make_shared<onnxruntime::TensorrtProviderFactory>(device_id, enable_cuda_mem_arena);
 }
 }  // namespace onnxruntime
 
