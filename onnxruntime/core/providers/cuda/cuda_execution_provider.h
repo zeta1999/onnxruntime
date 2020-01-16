@@ -83,7 +83,7 @@ class CUDAExecutionProvider : public IExecutionProvider {
 
   class PerThreadContext final {
    public:
-    PerThreadContext(int device_id, bool use_arena);
+    PerThreadContext(int device_id, bool use_cuda_arena);
     ~PerThreadContext();
 
     cublasHandle_t CublasHandle() const {

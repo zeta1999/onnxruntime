@@ -27,7 +27,6 @@ std::chrono::duration<double> OnnxRuntimeTestSession::Run() {
 static Ort::SessionOptions SessionOptionsFromPerfTestConfig(const PerformanceTestConfig& performance_test_config) {
   Ort::SessionOptions session_options;
 
-  // see the mem arena options before creates EPs that may use the value from session_options
   if (performance_test_config.run_config.enable_cpu_mem_arena)
     session_options.EnableCpuMemArena();
   else

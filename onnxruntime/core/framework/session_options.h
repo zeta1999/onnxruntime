@@ -33,12 +33,12 @@ struct SessionOptions {
   // See class 'OrtValuePatternPlanner'.
   bool enable_mem_pattern = true;
 
-  // enable the memory arena on CPU
+  // enable a memory arena for CPU allocations.
   // Arena may pre-allocate memory for future usage.
   // set this option to false if you don't want it.
   bool enable_cpu_mem_arena = true;
 
-  // enable the memory arena usage for CUDA allocations.
+  // enable a memory arena usage for CUDA allocations.
   // Arena may pre-allocate memory for future usage.
   // set this option to false if you don't want it.
   bool enable_cuda_mem_arena = true;

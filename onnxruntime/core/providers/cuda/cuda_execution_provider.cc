@@ -47,7 +47,7 @@ ONNX_OPERATOR_KERNEL_EX(
 
 thread_local std::unique_ptr<CUDAExecutionProvider::PerThreadContextMap> CUDAExecutionProvider::per_thread_context_map_;
 
-CUDAExecutionProvider::PerThreadContext::PerThreadContext(int device_id, bool use_arena) {
+CUDAExecutionProvider::PerThreadContext::PerThreadContext(int device_id, bool use_cuda_arena) {
   CUDA_CALL_THROW(cudaSetDevice(device_id));
   CUBLAS_CALL_THROW(cublasCreate(&cublas_handle_));
   CUDNN_CALL_THROW(cudnnCreate(&cudnn_handle_));
@@ -59,7 +59,7 @@ CUDAExecutionProvider::PerThreadContext::PerThreadContext(int device_id, bool us
        },
        std::numeric_limits<size_t>::max()});
 
-  allocator_ = CreateAllocator(default_memory_info, use_arena, device_id);
+  allocator_ = CreateAllocator(default_memory_info, use_cuda_arena, device_id);
 }
 
 CUDAExecutionProvider::PerThreadContext::~PerThreadContext() {

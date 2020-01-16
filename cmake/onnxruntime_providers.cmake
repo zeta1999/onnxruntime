@@ -132,7 +132,6 @@ if (onnxruntime_USE_CUDA)
   )
 
   source_group(TREE ${ONNXRUNTIME_INCLUDE_DIR} PREFIX include FILES ${onnxruntime_providers_cuda_cc_inc})
-  #source_group(include FILES ${onnxruntime_providers_cuda_cc_inc})
   source_group(TREE ${ONNXRUNTIME_ROOT}/core FILES ${onnxruntime_providers_cuda_cc_srcs} ${onnxruntime_providers_cuda_cu_srcs})
   source_group(TREE ${ONNXRUNTIME_ROOT} FILES ${onnxruntime_cuda_contrib_ops_cc_srcs} ${onnxruntime_cuda_contrib_ops_cu_srcs})
 

@@ -268,7 +268,6 @@ class IDeviceAllocator : public IAllocator {
   ~IDeviceAllocator() override = default;
   void* Alloc(size_t size) override = 0;
   void Free(void* p) override = 0;
-  bool AllowsArena() const { return Info().alloc_type == OrtAllocatorType::OrtArenaAllocator; }
 };
 
 class CPUAllocator : public IDeviceAllocator {
