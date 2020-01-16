@@ -87,10 +87,11 @@ TEST(AllocatorTest, CUDAAllocatorNoArenaTest) {
 
   DeviceAllocatorRegistrationInfo default_memory_info(
       {OrtMemTypeDefault,
-       [](int id) { return onnxruntime::make_unique<CUDAAllocator>(id, CUDA, /*use_arena*/ false); },
+       [](int id) { return onnxruntime::make_unique<CUDAAllocator>(id, CUDA); },
        total});
 
-  auto allocator = CreateAllocator(default_memory_info, cuda_device_id);
+  bool use_arena = false;
+  auto allocator = CreateAllocator(default_memory_info, use_arena, cuda_device_id);
 
   auto cuda_ep = DefaultCudaExecutionProvider(false);
   auto cuda_alloc = cuda_ep->GetAllocator(0, OrtMemTypeDefault);

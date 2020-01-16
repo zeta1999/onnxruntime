@@ -269,6 +269,11 @@ int real_main(int argc, char* argv[], Ort::Env& env) {
     else
       sf.DisableCpuMemArena();
 
+    if (enable_cuda_mem_arena)
+      sf.EnableCudaMemArena();
+    else
+      sf.DisableCudaMemArena();
+
     if (enable_mem_pattern)
       sf.EnableMemPattern();
     else
@@ -296,10 +301,7 @@ int real_main(int argc, char* argv[], Ort::Env& env) {
     }
     if (enable_cuda) {
 #ifdef USE_CUDA
-      if (enable_cuda_mem_arena)
-        Ort::ThrowOnError(OrtSessionOptionsAppendExecutionProvider_CUDA(sf, device_id));
-      else
-        Ort::ThrowOnError(OrtSessionOptionsAppendExecutionProvider_CUDA_NoArena(sf, device_id));
+      Ort::ThrowOnError(OrtSessionOptionsAppendExecutionProvider_CUDA(sf, device_id));
 #else
       fprintf(stderr, "CUDA is not supported in this build");
       return -1;
@@ -468,7 +470,7 @@ int real_main(int argc, char* argv[], Ort::Env& env) {
     broken_tests.insert({"mlperf_ssd_resnet34_1200", "Results mismatch"});
     broken_tests.insert({"BERT_Squad", "Invalid Feed Input Name:input4"});
     broken_tests.insert({"candy", "Results mismatch: 2 of 150528"});
-    broken_tests.insert({"tf_mobilenet_v1_1.0_224", "Results mismatch"});    
+    broken_tests.insert({"tf_mobilenet_v1_1.0_224", "Results mismatch"});
     broken_tests.insert({"tf_mobilenet_v2_1.0_224", "Results mismatch"});
     broken_tests.insert({"tf_mobilenet_v2_1.4_224", "Results mismatch"});
     broken_tests.insert({"convtranspose_1d", "1d convtranspose not supported yet"});

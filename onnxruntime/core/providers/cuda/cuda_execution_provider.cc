@@ -54,11 +54,12 @@ CUDAExecutionProvider::PerThreadContext::PerThreadContext(int device_id, bool us
 
   DeviceAllocatorRegistrationInfo default_memory_info(
       {OrtMemTypeDefault,
-       [use_arena](int id) {
-         return onnxruntime::make_unique<CUDAAllocator>(id, CUDA, use_arena);
+       [](int id) {
+         return onnxruntime::make_unique<CUDAAllocator>(id, CUDA);
        },
        std::numeric_limits<size_t>::max()});
-  allocator_ = CreateAllocator(default_memory_info, device_id);
+
+  allocator_ = CreateAllocator(default_memory_info, use_arena, device_id);
 }
 
 CUDAExecutionProvider::PerThreadContext::~PerThreadContext() {
@@ -67,50 +68,46 @@ CUDAExecutionProvider::PerThreadContext::~PerThreadContext() {
 }
 
 CUDAExecutionProvider::CUDAExecutionProvider(const CUDAExecutionProviderInfo& info)
-    : IExecutionProvider{onnxruntime::kCudaExecutionProvider}, device_id_(info.device_id), use_arena_(info.use_arena) {
+    : IExecutionProvider{onnxruntime::kCudaExecutionProvider},
+      device_id_(info.device_id),
+      use_cuda_arena_(info.use_cuda_arena),
+      use_cpu_arena_(info.use_cpu_arena) {
   CUDA_CALL_THROW(cudaSetDevice(device_id_));
 
   size_t free = 0;
   size_t total = 0;
   CUDA_CALL_THROW(cudaMemGetInfo(&free, &total));
 
-  bool use_arena = info.use_arena;
   DeviceAllocatorRegistrationInfo default_memory_info(
       {OrtMemTypeDefault,
-       [use_arena](int device_id) {
-         return onnxruntime::make_unique<CUDAAllocator>(device_id, CUDA, use_arena);
+       [](int device_id) {
+         return onnxruntime::make_unique<CUDAAllocator>(device_id, CUDA);
        },
        total});
 
-  InsertAllocator(CreateAllocator(default_memory_info, device_id_));
+  InsertAllocator(CreateAllocator(default_memory_info, use_cuda_arena_, device_id_));
 
   DeviceAllocatorRegistrationInfo pinned_memory_info(
       {OrtMemTypeCPUOutput,
-       [use_arena](int device_id) {
-         return onnxruntime::make_unique<CUDAPinnedAllocator>(device_id, CUDA_PINNED, use_arena);
+       [](int device_id) {
+         return onnxruntime::make_unique<CUDAPinnedAllocator>(device_id, CUDA_PINNED);
        },
        std::numeric_limits<size_t>::max()});
 
-  InsertAllocator(CreateAllocator(pinned_memory_info, CPU_ALLOCATOR_DEVICE_ID));
+  InsertAllocator(CreateAllocator(pinned_memory_info, use_cuda_arena_, CPU_ALLOCATOR_DEVICE_ID));
 
   // TODO: this is actually used for the cuda kernels which explicitly ask for inputs from CPU.
   // This will be refactored/removed when allocator and execution provider are decoupled.
   DeviceAllocatorRegistrationInfo cpu_memory_info(
       {OrtMemTypeCPUInput,
-       [use_arena](int device_id) {
+       [](int device_id) {
          return onnxruntime::make_unique<CPUAllocator>(
-             OrtMemoryInfo("CUDA_CPU",
-                           use_arena ? OrtAllocatorType::OrtArenaAllocator : OrtAllocatorType::OrtDeviceAllocator,
-                           OrtDevice(),
-                           device_id,
+             OrtMemoryInfo("CUDA_CPU", OrtAllocatorType::OrtDeviceAllocator, OrtDevice(), device_id,
                            OrtMemTypeCPUInput));
        },
        std::numeric_limits<size_t>::max()});
 
-  InsertAllocator(
-      use_arena
-          ? CreateAllocator(cpu_memory_info, CPU_ALLOCATOR_DEVICE_ID)
-          : cpu_memory_info.factory(CPU_ALLOCATOR_DEVICE_ID));
+  InsertAllocator(CreateAllocator(cpu_memory_info, use_cpu_arena_, CPU_ALLOCATOR_DEVICE_ID));
 }
 
 CUDAExecutionProvider::~CUDAExecutionProvider() {
@@ -140,7 +137,7 @@ CUDAExecutionProvider::PerThreadContext& CUDAExecutionProvider::GetPerThreadCont
     std::lock_guard<OrtMutex> lock(context_pool_mutex_);
     std::shared_ptr<PerThreadContext> ptc;
     if (retired_context_pool_.empty()) {
-      ptc = std::make_shared<PerThreadContext>(device_id_, use_arena_);
+      ptc = std::make_shared<PerThreadContext>(device_id_, use_cuda_arena_);
     } else {
       ptc = retired_context_pool_.back();
       retired_context_pool_.pop_back();

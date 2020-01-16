@@ -24,11 +24,50 @@ std::chrono::duration<double> OnnxRuntimeTestSession::Run() {
   return duration_seconds;
 }
 
+static Ort::SessionOptions SessionOptionsFromPerfTestConfig(const PerformanceTestConfig& performance_test_config) {
+  Ort::SessionOptions session_options;
+
+  // see the mem arena options before creates EPs that may use the value from session_options
+  if (performance_test_config.run_config.enable_cpu_mem_arena)
+    session_options.EnableCpuMemArena();
+  else
+    session_options.DisableCpuMemArena();
+
+  if (performance_test_config.run_config.enable_cuda_mem_arena)
+    session_options.EnableCudaMemArena();
+  else
+    session_options.DisableCudaMemArena();
+
+  if (performance_test_config.run_config.enable_memory_pattern &&
+      performance_test_config.run_config.execution_mode == ExecutionMode::ORT_SEQUENTIAL)
+    session_options.EnableMemPattern();
+  else
+    session_options.DisableMemPattern();
+
+  session_options.SetExecutionMode(performance_test_config.run_config.execution_mode);
+  fprintf(stdout, "Setting intra_op_num_threads to %d\n", performance_test_config.run_config.intra_op_num_threads);
+  session_options.SetIntraOpNumThreads(performance_test_config.run_config.intra_op_num_threads);
+
+  if (performance_test_config.run_config.execution_mode == ExecutionMode::ORT_PARALLEL) {
+    fprintf(stdout, "Setting inter_op_num_threads to %d\n", performance_test_config.run_config.inter_op_num_threads);
+  }
+
+  session_options.SetInterOpNumThreads(performance_test_config.run_config.inter_op_num_threads);
+
+  session_options.SetGraphOptimizationLevel(performance_test_config.run_config.optimization_level);
+  if (!performance_test_config.run_config.profile_file.empty())
+    session_options.EnableProfiling(performance_test_config.run_config.profile_file.c_str());
+  if (!performance_test_config.run_config.optimized_model_path.empty())
+    session_options.SetOptimizedModelFilePath(performance_test_config.run_config.optimized_model_path.c_str());
+
+  return session_options;
+}
+
 OnnxRuntimeTestSession::OnnxRuntimeTestSession(Ort::Env& env, std::random_device& rd,
                                                const PerformanceTestConfig& performance_test_config,
                                                const TestModelInfo* m)
     : rand_engine_(rd()), input_names_(m->GetInputCount()), input_length_(m->GetInputCount()) {
-  Ort::SessionOptions session_options;
+  Ort::SessionOptions session_options = SessionOptionsFromPerfTestConfig(performance_test_config);
 
   const std::string& provider_name = performance_test_config.machine_config.provider_type_name;
   if (provider_name == onnxruntime::kDnnlExecutionProvider) {
@@ -36,7 +75,7 @@ OnnxRuntimeTestSession::OnnxRuntimeTestSession(Ort::Env& env, std::random_device
     Ort::ThrowOnError(
         OrtSessionOptionsAppendExecutionProvider_Dnnl(
             session_options,
-            performance_test_config.run_config.enable_cpu_mem_arena ? 1 : 0));
+            performance_test_config.run_config.enable_cpu_mem_arena ? 1 : 0));  // this value could be read from SessionOptions
 #else
     ORT_THROW("DNNL is not supported in this build\n");
 #endif
@@ -48,10 +87,7 @@ OnnxRuntimeTestSession::OnnxRuntimeTestSession(Ort::Env& env, std::random_device
 #endif
   } else if (provider_name == onnxruntime::kCudaExecutionProvider) {
 #ifdef USE_CUDA
-    if (performance_test_config.run_config.enable_cuda_mem_arena)
-      Ort::ThrowOnError(OrtSessionOptionsAppendExecutionProvider_CUDA(session_options, 0));
-    else
-      Ort::ThrowOnError(OrtSessionOptionsAppendExecutionProvider_CUDA_NoArena(session_options, 0));
+    Ort::ThrowOnError(OrtSessionOptionsAppendExecutionProvider_CUDA(session_options, 0));
 #else
     ORT_THROW("CUDA is not supported in this build\n");
 #endif
@@ -91,7 +127,7 @@ OnnxRuntimeTestSession::OnnxRuntimeTestSession(Ort::Env& env, std::random_device
 #ifdef USE_ACL
     Ort::ThrowOnError(
         OrtSessionOptionsAppendExecutionProvider_ACL(session_options,
-                                                     performance_test_config.run_config.enable_cpu_mem_arena ? 1 : 0));
+                                                     performance_test_config.run_config.enable_cpu_mem_arena ? 1 : 0));  // this value could be read from SessionOptions
 #else
     ORT_THROW("Acl is not supported in this build\n");
 #endif
@@ -99,32 +135,6 @@ OnnxRuntimeTestSession::OnnxRuntimeTestSession(Ort::Env& env, std::random_device
     ORT_THROW("This backend is not included in perf test runner.\n");
   }
 
-  if (performance_test_config.run_config.enable_cpu_mem_arena)
-    session_options.EnableCpuMemArena();
-  else
-    session_options.DisableCpuMemArena();
-
-  if (performance_test_config.run_config.enable_memory_pattern &&
-      performance_test_config.run_config.execution_mode == ExecutionMode::ORT_SEQUENTIAL)
-    session_options.EnableMemPattern();
-  else
-    session_options.DisableMemPattern();
-
-  session_options.SetExecutionMode(performance_test_config.run_config.execution_mode);
-  fprintf(stdout, "Setting intra_op_num_threads to %d\n", performance_test_config.run_config.intra_op_num_threads);
-  session_options.SetIntraOpNumThreads(performance_test_config.run_config.intra_op_num_threads);
-
-  if (performance_test_config.run_config.execution_mode == ExecutionMode::ORT_PARALLEL) {
-    fprintf(stdout, "Setting inter_op_num_threads to %d\n", performance_test_config.run_config.inter_op_num_threads);
-  }
-
-  session_options.SetInterOpNumThreads(performance_test_config.run_config.inter_op_num_threads);
-  // Set optimization level.
-  session_options.SetGraphOptimizationLevel(performance_test_config.run_config.optimization_level);
-  if (!performance_test_config.run_config.profile_file.empty())
-    session_options.EnableProfiling(performance_test_config.run_config.profile_file.c_str());
-  if (!performance_test_config.run_config.optimized_model_path.empty())
-    session_options.SetOptimizedModelFilePath(performance_test_config.run_config.optimized_model_path.c_str());
   session_ = Ort::Session(env, performance_test_config.model_info.model_file_path.c_str(), session_options);
 
   size_t output_count = session_.GetOutputCount();

@@ -20,6 +20,7 @@ using TArenaAllocator = BFCArena;
 
 AllocatorPtr CreateAllocator(DeviceAllocatorRegistrationInfo info, bool use_arena, int device_id) {
   auto device_allocator = std::unique_ptr<IDeviceAllocator>(info.factory(device_id));
+
   if (use_arena) {
     return std::shared_ptr<IArenaAllocator>(
         onnxruntime::make_unique<TArenaAllocator>(std::move(device_allocator), info.max_mem));

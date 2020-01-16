@@ -18,7 +18,8 @@ const int CPU_ALLOCATOR_DEVICE_ID = 0;
 // Information needed to construct CUDA execution providers.
 struct CUDAExecutionProviderInfo {
   int device_id{0};
-  bool use_arena{true};
+  bool use_cuda_arena{true};
+  bool use_cpu_arena{true};
 };
 
 // Logical device representation.
@@ -69,7 +70,8 @@ class CUDAExecutionProvider : public IExecutionProvider {
 
  private:
   int device_id_;
-  bool use_arena_;
+  bool use_cuda_arena_;
+  bool use_cpu_arena_;
 
   struct DeferredReleaseCPUPtrs {
     bool recorded = false;
