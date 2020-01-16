@@ -109,10 +109,10 @@ std::string nuphar_settings;
 #endif
 
 namespace onnxruntime {
-std::shared_ptr<IExecutionProviderFactory> CreateExecutionProviderFactory_CPU(int use_arena);
+std::shared_ptr<IExecutionProviderFactory> CreateExecutionProviderFactory_CPU(bool use_arena);
 std::shared_ptr<IExecutionProviderFactory> CreateExecutionProviderFactory_CUDA(int device_id, bool use_cuda_arena, bool use_cpu_arena);
 std::shared_ptr<IExecutionProviderFactory> CreateExecutionProviderFactory_Tensorrt(int device_id, bool use_cuda_arena);
-std::shared_ptr<IExecutionProviderFactory> CreateExecutionProviderFactory_Dnnl(int use_arena);
+std::shared_ptr<IExecutionProviderFactory> CreateExecutionProviderFactory_Dnnl(bool use_arena);
 std::shared_ptr<IExecutionProviderFactory> CreateExecutionProviderFactory_NGraph(const char* ng_backend_type);
 std::shared_ptr<IExecutionProviderFactory> CreateExecutionProviderFactory_OpenVINO(const char* device);
 std::shared_ptr<IExecutionProviderFactory> CreateExecutionProviderFactory_Nuphar(bool, const char*);
@@ -413,12 +413,12 @@ void addGlobalMethods(py::module& m) {
                 /*default_max_vlog_level*/ -1);
 
         std::vector<std::shared_ptr<onnxruntime::IExecutionProviderFactory>> factories = {
-            onnxruntime::CreateExecutionProviderFactory_CPU(0),
+            onnxruntime::CreateExecutionProviderFactory_CPU(true),
 #ifdef USE_CUDA
             onnxruntime::CreateExecutionProviderFactory_CUDA(0, true, true),
 #endif
 #ifdef USE_DNNL
-            onnxruntime::CreateExecutionProviderFactory_Dnnl(1),
+            onnxruntime::CreateExecutionProviderFactory_Dnnl(true),
 #endif
 #ifdef USE_NGRAPH
             onnxruntime::CreateExecutionProviderFactory_NGraph("CPU"),
@@ -427,7 +427,7 @@ void addGlobalMethods(py::module& m) {
             onnxruntime::CreateExecutionProviderFactory_OpenVINO("CPU"),
 #endif
 #ifdef USE_TENSORRT
-            onnxruntime::CreateExecutionProviderFactory_Tensorrt(0)
+            onnxruntime::CreateExecutionProviderFactory_Tensorrt(0, true)
 #endif
         };
 

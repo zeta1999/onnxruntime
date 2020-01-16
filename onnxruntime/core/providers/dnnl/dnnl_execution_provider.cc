@@ -22,8 +22,7 @@ DNNLExecutionProvider::DNNLExecutionProvider(const DNNLExecutionProviderInfo& in
   DeviceAllocatorRegistrationInfo default_memory_info(
       {OrtMemTypeDefault,
        [](int) {
-         return onnxruntime::make_unique<CPUAllocator>(
-           onnxruntime::make_unique<OrtMemoryInfo>(DNNL, OrtAllocatorType::OrtDeviceAllocator));
+         return onnxruntime::make_unique<CPUAllocator>(OrtMemoryInfo(DNNL, OrtAllocatorType::OrtDeviceAllocator));
        },
        std::numeric_limits<size_t>::max()});
 
@@ -31,8 +30,7 @@ DNNLExecutionProvider::DNNLExecutionProvider(const DNNLExecutionProviderInfo& in
       {OrtMemTypeCPUOutput,
        [](int) {
          return onnxruntime::make_unique<CPUAllocator>(
-           onnxruntime::make_unique<OrtMemoryInfo>(DNNL_CPU, OrtAllocatorType::OrtDeviceAllocator,
-                                                   OrtDevice(), 0, OrtMemTypeCPUOutput));
+             OrtMemoryInfo(DNNL_CPU, OrtAllocatorType::OrtDeviceAllocator, OrtDevice(), 0, OrtMemTypeCPUOutput));
        },
        std::numeric_limits<size_t>::max()});
 
@@ -52,7 +50,7 @@ void RegisterDNNLKernels(KernelRegistry& kernel_registry) {
   };
 
   for (auto& function_table_entry : function_table) {
-    kernel_registry.Register(function_table_entry()); 
+    kernel_registry.Register(function_table_entry());
   }
 }
 
