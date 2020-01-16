@@ -111,7 +111,7 @@ std::string nuphar_settings;
 namespace onnxruntime {
 std::shared_ptr<IExecutionProviderFactory> CreateExecutionProviderFactory_CPU(int use_arena);
 std::shared_ptr<IExecutionProviderFactory> CreateExecutionProviderFactory_CUDA(int device_id, bool use_cuda_arena, bool use_cpu_arena);
-std::shared_ptr<IExecutionProviderFactory> CreateExecutionProviderFactory_Tensorrt(int device_id);
+std::shared_ptr<IExecutionProviderFactory> CreateExecutionProviderFactory_Tensorrt(int device_id, bool use_cuda_arena);
 std::shared_ptr<IExecutionProviderFactory> CreateExecutionProviderFactory_Dnnl(int use_arena);
 std::shared_ptr<IExecutionProviderFactory> CreateExecutionProviderFactory_NGraph(const char* ng_backend_type);
 std::shared_ptr<IExecutionProviderFactory> CreateExecutionProviderFactory_OpenVINO(const char* device);
@@ -307,15 +307,18 @@ void RegisterExecutionProviders(InferenceSession* sess, const std::vector<std::s
           sess, *onnxruntime::CreateExecutionProviderFactory_CPU(sess->GetSessionOptions().enable_cpu_mem_arena));
     } else if (type == kTensorrtExecutionProvider) {
 #ifdef USE_TENSORRT
-      RegisterExecutionProvider(sess, *onnxruntime::CreateExecutionProviderFactory_Tensorrt(0));
+      RegisterExecutionProvider(
+          sess,
+          *onnxruntime::CreateExecutionProviderFactory_Tensorrt(0, sess->GetSessionOptions().enable_cuda_mem_arena));
 #endif
     } else if (type == kCudaExecutionProvider) {
 #ifdef USE_CUDA
       // TODO: Do we need a way to be able to specify the device id?
       RegisterExecutionProvider(
-          sess, *onnxruntime::CreateExecutionProviderFactory_CUDA(0,
-                                                                  sess->GetSessionOptions().enable_cuda_mem_arena,
-                                                                  sess->GetSessionOptions().enable_cpu_mem_arena));
+          sess,
+          *onnxruntime::CreateExecutionProviderFactory_CUDA(0,
+                                                            sess->GetSessionOptions().enable_cuda_mem_arena,
+                                                            sess->GetSessionOptions().enable_cpu_mem_arena));
 #endif
     } else if (type == kDnnlExecutionProvider) {
 #ifdef USE_DNNL

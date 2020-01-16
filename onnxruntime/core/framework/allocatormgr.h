@@ -16,7 +16,7 @@ struct DeviceAllocatorRegistrationInfo {
   size_t max_mem;
 };
 
-AllocatorPtr CreateAllocator(DeviceAllocatorRegistrationInfo info, bool use_arena, int device_id = 0);
+AllocatorPtr CreateAllocator(DeviceAllocatorRegistrationInfo info, bool use_arena = true, int device_id = 0);
 
 class DeviceAllocatorRegistry {
  public:

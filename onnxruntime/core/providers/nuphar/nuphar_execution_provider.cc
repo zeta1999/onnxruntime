@@ -21,7 +21,7 @@ using namespace onnxruntime::nuphar;
 
 namespace onnxruntime {
 
-// Initialization of thread local counter as subgraph id
+// Initialization of thread local counter as subgraph id 
 thread_local int64_t NupharSubgraphUnit::counter = 0;
 
 thread_local std::unique_ptr<std::unordered_map<std::string, int64_t>> NupharExecutionProvider::tls_realized_dims_;
@@ -107,7 +107,7 @@ NupharExecutionProvider::NupharExecutionProvider(const NupharExecutionProviderIn
        [](int /*id*/) { return onnxruntime::make_unique<CPUAllocator>(onnxruntime::make_unique<OrtMemoryInfo>("Nuphar", OrtAllocatorType::OrtDeviceAllocator)); },
        std::numeric_limits<size_t>::max()});
 
-  InsertAllocator(CreateAllocator(memory_info, tvm_ctx_.device_id));
+  InsertAllocator(CreateAllocator(memory_info, /*use_arena*/true, tvm_ctx_.device_id));
 
   // TODO add multi-target support
   tvm_codegen_manager_ = onnxruntime::make_unique<TVMCodeGenManager>();
