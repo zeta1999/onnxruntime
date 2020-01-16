@@ -18,7 +18,7 @@ using TArenaAllocator = MiMallocArena;
 using TArenaAllocator = BFCArena;
 #endif
 
-AllocatorPtr CreateAllocator(DeviceAllocatorRegistrationInfo info, bool use_arena, int device_id) {
+AllocatorPtr CreateAllocator(DeviceAllocatorRegistrationInfo info, int device_id, bool use_arena) {
   auto device_allocator = std::unique_ptr<IDeviceAllocator>(info.factory(device_id));
 
   if (use_arena) {

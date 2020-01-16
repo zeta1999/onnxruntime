@@ -59,7 +59,7 @@ CUDAExecutionProvider::PerThreadContext::PerThreadContext(int device_id, bool us
        },
        std::numeric_limits<size_t>::max()});
 
-  allocator_ = CreateAllocator(default_memory_info, use_cuda_arena, device_id);
+  allocator_ = CreateAllocator(default_memory_info, device_id, use_cuda_arena);
 }
 
 CUDAExecutionProvider::PerThreadContext::~PerThreadContext() {
@@ -85,7 +85,7 @@ CUDAExecutionProvider::CUDAExecutionProvider(const CUDAExecutionProviderInfo& in
        },
        total});
 
-  InsertAllocator(CreateAllocator(default_memory_info, use_cuda_arena_, device_id_));
+  InsertAllocator(CreateAllocator(default_memory_info, device_id_, use_cuda_arena_));
 
   DeviceAllocatorRegistrationInfo pinned_memory_info(
       {OrtMemTypeCPUOutput,
@@ -94,7 +94,7 @@ CUDAExecutionProvider::CUDAExecutionProvider(const CUDAExecutionProviderInfo& in
        },
        std::numeric_limits<size_t>::max()});
 
-  InsertAllocator(CreateAllocator(pinned_memory_info, use_cuda_arena_, CPU_ALLOCATOR_DEVICE_ID));
+  InsertAllocator(CreateAllocator(pinned_memory_info, CPU_ALLOCATOR_DEVICE_ID, use_cuda_arena_));
 
   // TODO: this is actually used for the cuda kernels which explicitly ask for inputs from CPU.
   // This will be refactored/removed when allocator and execution provider are decoupled.
@@ -107,7 +107,7 @@ CUDAExecutionProvider::CUDAExecutionProvider(const CUDAExecutionProviderInfo& in
        },
        std::numeric_limits<size_t>::max()});
 
-  InsertAllocator(CreateAllocator(cpu_memory_info, use_cpu_arena_, CPU_ALLOCATOR_DEVICE_ID));
+  InsertAllocator(CreateAllocator(cpu_memory_info, CPU_ALLOCATOR_DEVICE_ID, use_cpu_arena_));
 }
 
 CUDAExecutionProvider::~CUDAExecutionProvider() {

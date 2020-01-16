@@ -7,7 +7,7 @@ namespace onnxruntime {
 namespace test {
 
 DummyAllocator::DummyAllocator()
-    : IAllocator(OrtMemoryInfo{kDummyAllocator, OrtAllocatorType::OrtDeviceAllocator}) {
+    : IAllocator(OrtMemoryInfo(kDummyAllocator, OrtAllocatorType::OrtDeviceAllocator)) {
 }
 
 void* DummyAllocator::Alloc(size_t size) {

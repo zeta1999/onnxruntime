@@ -109,7 +109,7 @@ NupharExecutionProvider::NupharExecutionProvider(const NupharExecutionProviderIn
        },
        std::numeric_limits<size_t>::max()});
 
-  InsertAllocator(CreateAllocator(memory_info, /*use_arena*/ true, tvm_ctx_.device_id));
+  InsertAllocator(CreateAllocator(memory_info, tvm_ctx_.device_id));
 
   // TODO add multi-target support
   tvm_codegen_manager_ = onnxruntime::make_unique<TVMCodeGenManager>();

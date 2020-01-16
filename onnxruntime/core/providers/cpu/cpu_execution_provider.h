@@ -44,7 +44,7 @@ class CPUExecutionProvider : public IExecutionProvider {
     create_arena = false;
 #endif
 
-    InsertAllocator(CreateAllocator(device_info, create_arena));
+    InsertAllocator(CreateAllocator(device_info, 0, create_arena));
   }
 
   std::shared_ptr<KernelRegistry> GetKernelRegistry() const override;

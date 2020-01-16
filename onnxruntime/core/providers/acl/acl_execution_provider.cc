@@ -81,7 +81,7 @@ ACLExecutionProvider::ACLExecutionProvider(const ACLExecutionProviderInfo& info)
       },
       std::numeric_limits<size_t>::max()};
 
-  InsertAllocator(CreateAllocator(default_memory_info, info.create_arena));
+  InsertAllocator(CreateAllocator(default_memory_info, 0, info.create_arena));
 
   DeviceAllocatorRegistrationInfo cpu_memory_info{
       OrtMemTypeCPUOutput,
@@ -91,7 +91,7 @@ ACLExecutionProvider::ACLExecutionProvider(const ACLExecutionProviderInfo& info)
       },
       std::numeric_limits<size_t>::max()};
 
-  InsertAllocator(CreateAllocator(cpu_memory_info, info.create_arena));
+  InsertAllocator(CreateAllocator(cpu_memory_info, 0, info.create_arena));
 }
 
 ACLExecutionProvider::~ACLExecutionProvider() {

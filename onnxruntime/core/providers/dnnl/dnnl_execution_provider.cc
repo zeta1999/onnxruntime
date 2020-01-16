@@ -34,8 +34,8 @@ DNNLExecutionProvider::DNNLExecutionProvider(const DNNLExecutionProviderInfo& in
        },
        std::numeric_limits<size_t>::max()});
 
-  InsertAllocator(CreateAllocator(default_memory_info, info.create_arena));
-  InsertAllocator(CreateAllocator(cpu_memory_info, info.create_arena));
+  InsertAllocator(CreateAllocator(default_memory_info, 0, info.create_arena));
+  InsertAllocator(CreateAllocator(cpu_memory_info, 0, info.create_arena));
 }  // namespace onnxruntime
 
 DNNLExecutionProvider::~DNNLExecutionProvider() {

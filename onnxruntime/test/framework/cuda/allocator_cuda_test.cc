@@ -2,13 +2,13 @@
 // Licensed under the MIT License.
 
 #include "core/framework/allocatormgr.h"
-#include "test/framework/test_utils.h"
-#include "gtest/gtest.h"
-#include "cuda_runtime.h"
+#include "core/framework/arena.h"
 #include "core/providers/cuda/cuda_allocator.h"
 #include "core/providers/cuda/cuda_common.h"
-#include "core/framework/bfc_arena.h"
+#include "test/framework/test_utils.h"
 #include "test/util/include/default_providers.h"
+#include "gtest/gtest.h"
+#include "cuda_runtime.h"
 
 namespace onnxruntime {
 namespace test {
@@ -20,7 +20,7 @@ TEST(AllocatorTest, CUDAAllocatorTest) {
        std::numeric_limits<size_t>::max()});
 
   bool use_arena = true;
-  auto cuda_arena = CreateAllocator(default_memory_info, use_arena, cuda_device_id);
+  auto cuda_arena = CreateAllocator(default_memory_info, cuda_device_id, use_arena);
 
   size_t size = 1024;
 
@@ -38,7 +38,7 @@ TEST(AllocatorTest, CUDAAllocatorTest) {
        [](int) { return onnxruntime::make_unique<CUDAPinnedAllocator>(0, CUDA_PINNED); },
        std::numeric_limits<size_t>::max()});
 
-  auto pinned_allocator = CreateAllocator(pinned_memory_info, use_arena);
+  auto pinned_allocator = CreateAllocator(pinned_memory_info, 0, use_arena);
 
   EXPECT_STREQ(pinned_allocator->Info().name, CUDA_PINNED);
   EXPECT_EQ(pinned_allocator->Info().id, 0);
@@ -91,7 +91,7 @@ TEST(AllocatorTest, CUDAAllocatorNoArenaTest) {
        total});
 
   bool use_arena = false;
-  auto allocator = CreateAllocator(default_memory_info, use_arena, cuda_device_id);
+  auto allocator = CreateAllocator(default_memory_info, cuda_device_id, use_arena);
 
   auto cuda_ep = DefaultCudaExecutionProvider(false);
   auto cuda_alloc = cuda_ep->GetAllocator(0, OrtMemTypeDefault);
