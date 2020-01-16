@@ -74,7 +74,7 @@ OnnxRuntimeTestSession::OnnxRuntimeTestSession(Ort::Env& env, std::random_device
     Ort::ThrowOnError(
         OrtSessionOptionsAppendExecutionProvider_Dnnl(
             session_options,
-            performance_test_config.run_config.enable_cpu_mem_arena ? 1 : 0));  // this value could be read from SessionOptions
+            performance_test_config.run_config.enable_cpu_mem_arena ? 1 : 0));  // could use SessionOptions::enable_cpu_mem_arena instead
 #else
     ORT_THROW("DNNL is not supported in this build\n");
 #endif
