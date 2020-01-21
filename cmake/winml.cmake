@@ -9,7 +9,7 @@ include(winml_cppwinrt.cmake)
 get_sdk(sdk_folder sdk_version)
 set(target_folder ONNXRuntime/winml)
 set(winml_adapter_dir ${REPO_ROOT}/winml/adapter)
-set(winml_api_root ${REPO_ROOT}/winml/api)
+set(winml_api_dir ${REPO_ROOT}/winml/api)
 set(winml_dll_dir ${REPO_ROOT}/winml/dll)
 set(winml_lib_dir ${REPO_ROOT}/winml/lib)
 set(winml_lib_api_dir ${REPO_ROOT}/winml/lib/api)
@@ -18,7 +18,7 @@ set(winml_lib_api_ort_dir ${REPO_ROOT}/winml/lib/api.ort)
 set(winml_lib_common_dir ${REPO_ROOT}/winml/lib/common)
 set(winml_lib_telemetry_dir ${REPO_ROOT}/winml/lib/telemetry)
 
-get_filename_component(exclusions "${winml_api_root}/exclusions.txt" ABSOLUTE)
+get_filename_component(exclusions "${winml_api_dir}/exclusions.txt" ABSOLUTE)
 convert_forward_slashes_to_back(${exclusions} CPPWINRT_COMPONENT_EXCLUSION_LIST)
 
 # For winrt idl files:
@@ -30,9 +30,9 @@ convert_forward_slashes_to_back(${exclusions} CPPWINRT_COMPONENT_EXCLUSION_LIST)
 # generated component files.
 #
 # For native idl files there are no casing restrictions.
-get_filename_component(winrt_idl "${winml_api_root}/Windows.AI.MachineLearning.idl" ABSOLUTE)
-get_filename_component(idl_native "${winml_api_root}/windows.ai.machineLearning.native.idl" ABSOLUTE)
-get_filename_component(idl_native_internal "${winml_api_root}/windows.ai.machineLearning.native.internal.idl" ABSOLUTE)
+get_filename_component(winrt_idl "${winml_api_dir}/Windows.AI.MachineLearning.idl" ABSOLUTE)
+get_filename_component(idl_native "${winml_api_dir}/windows.ai.machineLearning.native.idl" ABSOLUTE)
+get_filename_component(idl_native_internal "${winml_api_dir}/windows.ai.machineLearning.native.internal.idl" ABSOLUTE)
 
 # generate cppwinrt sdk
 add_generate_cppwinrt_sdk_headers_target(
@@ -200,7 +200,7 @@ list(APPEND winml_adapter_files
     ${winml_adapter_dir}/winml_adapter_model.h
     ${winml_adapter_dir}/winml_adapter_session.cpp
     )
-	
+
 if (onnxruntime_USE_DML)
   list(APPEND winml_adapter_files
     ${winml_adapter_dir}/abi_custom_registry_impl.cpp
