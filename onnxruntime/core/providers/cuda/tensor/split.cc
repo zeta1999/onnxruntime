@@ -92,6 +92,8 @@ Status Split::ComputeInternal(OpKernelContext* ctx) const {
                                   input_data,
                                   output_ptr.GpuPtr(),
                                   input_shape.Size()));
+  } else {
+    printf("SPLIT_DEBUG: input=%s; axis=%ld; split_sizes=%s\n", input_shape.ToString().c_str(), axis_, TensorShape(split_sizes_).ToString().c_str());
   }
 
   return Status::OK();
