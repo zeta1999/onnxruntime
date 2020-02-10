@@ -223,7 +223,7 @@ setup(
     },
     py_modules=python_modules_list,
     install_requires=[
-        'onnx>=1.2.3',
+        'onnx>=1.6.0,<1.7.0',
         'numpy>=1.18.0'
     ],
     entry_points= {
