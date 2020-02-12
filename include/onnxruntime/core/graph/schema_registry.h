@@ -35,6 +35,11 @@ class IOnnxRuntimeOpSchemaCollection : public ONNX_NAMESPACE::ISchemaRegistry {
 
   using ISchemaRegistry::GetSchema;
 
+  // Return the schema with biggest version, which is not greater than specified
+  // <maxInclusiveVersion> in the specified domain. Domain with default value
+  // ONNX_DOMAIN means ONNX.
+  // Our implementation adds one more restriction: 'this' object must have full information of the opset
+  // <maxInclusiveVersion> in the specified domain.
   const ONNX_NAMESPACE::OpSchema* GetSchema(const std::string& key, const int maxInclusiveVersion,
                                             const std::string& domain) const final {
     const ONNX_NAMESPACE::OpSchema* latest_schema = nullptr;
@@ -47,6 +52,9 @@ class IOnnxRuntimeOpSchemaCollection : public ONNX_NAMESPACE::ISchemaRegistry {
     return latest_schema;
   }
 
+  // It should return the schema with biggest version, which is not greater than specified
+  // <maxInclusiveVersion> in specified domain. Domain with default value
+  // ONNX_DOMAIN means ONNX.
   virtual void GetSchemaAndHistory(
       const std::string& key,
       int maxInclusiveVersion,
@@ -64,7 +72,8 @@ Each OnnxRuntimeOpSchemaRegistry must register complete opsets delta from a base
 
 For example, ONNXRuntime is build with ONNX 1.2 which is at opset7, to use ONNX opset8 and opset9,
 user could create a OnnxRuntimeOpSchemaRegistry and config it as {baseline_opset_version = 7, opset_version = 9}
-it means this OnnxRuntimeOpSchemaRegistry contains the complete delta from opset7 to opset9.
+it means this OnnxRuntimeOpSchemaRegistry contains the complete delta from opset7 to opset9. If you search anything for
+ opset10, nothing would be found.
 */
 class OnnxRuntimeOpSchemaRegistry : public IOnnxRuntimeOpSchemaCollection {
  public:
@@ -78,6 +87,7 @@ class OnnxRuntimeOpSchemaRegistry : public IOnnxRuntimeOpSchemaCollection {
   DomainToVersionMap GetLatestOpsetVersions(bool is_onnx_only) const override;
 
   // OnnxRuntimeOpSchemaRegistry must register complete delta for a opset.
+  // Each schema's since_version must <= the corresponding opset_version in domain_version_range_map_
   common::Status RegisterOpSet(
       std::vector<ONNX_NAMESPACE::OpSchema>& schemas,
       const std::string& domain,
@@ -119,7 +129,7 @@ class SchemaRegistryManager : public onnxruntime::IOnnxRuntimeOpSchemaCollection
  public:
   /**
   Register a new schema registry instance.
-  @remarks The schema registry priority is the reverse of registration order. i.e. the last registry added will be
+  @remarks The schema registry priority is the order of registration order. i.e. the first registry added will be
   searched first for a matching OpSchema.
   */
   void RegisterRegistry(std::shared_ptr<IOnnxRuntimeOpSchemaCollection> registry);

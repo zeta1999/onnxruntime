@@ -71,8 +71,8 @@ static Status MergeShapeInfo(const std::string& output_name,
       // target.shape() was empty. 'assert' just in case that ever changes.
       assert(utils::HasShape(source) && utils::HasShape(target));
       LOGS(logger, WARNING) << "Error merging shape info for output. '" << output_name
-                               << "' source:" << source.shape() << " target:" << target.shape()
-                               << ". Falling back to lenient merge.";
+                            << "' source:" << source.shape() << " target:" << target.shape()
+                            << ". Falling back to lenient merge.";
 
       ONNX_NAMESPACE::UnionShapeInfo(source.shape(), target);
     } else {
@@ -1775,13 +1775,10 @@ Status Graph::VerifyNodeAndOpMatch() {
   // we may have some locally defined outer scope args if we're in the middle of constructing a subgraph
   // and need to call Resolve
   lsc.output_names.insert(outer_scope_node_arg_names_.cbegin(), outer_scope_node_arg_names_.cend());
-
   for (auto node_index : nodes_in_topological_order_) {
     // Node verification.
     auto& node = *GetNode(node_index);
 
-    NodeProto node_proto;
-    node.ToProto(node_proto);
     auto& node_name = node.Name();
     auto& domain = node.Domain();
 
@@ -1793,31 +1790,57 @@ Status Graph::VerifyNodeAndOpMatch() {
                                                                                            logger_));
       node.SetFunctionBody(*function_container_.back());
     }
-
+    NodeProto node_proto;
+    node.ToProto(node_proto);
     if (!node.Op()) {
       try {
-        checker::check_node(node_proto, ctx, lsc);
+        auto iter2 = domain_to_version_.find(domain);
+        if (iter2 == domain_to_version_.end()) {
+          return ORT_MAKE_STATUS(ONNXRUNTIME, INVALID_GRAPH, "onnxruntime doesn't have operator schema for domain ", domain);
+        }
+        if (node.OpType().empty()) {
+          return ORT_MAKE_STATUS(ONNXRUNTIME, INVALID_GRAPH, "op type can't be empty");
+        }
+        auto maxInclusiveVersion = iter2->second;
+        node.op_ = schema_registry_->GetSchema(node.OpType(), maxInclusiveVersion, node.Domain());
+        const auto* schema = node.op_;
+        if (!schema) {
+          return ORT_MAKE_STATUS(ONNXRUNTIME, INVALID_GRAPH, "No Op registered for ", node.OpType(), " with domain_version of ", maxInclusiveVersion);
+        }
+
+        if (schema->Deprecated()) {
+          return ORT_MAKE_STATUS(ONNXRUNTIME, INVALID_GRAPH, "Op registered for ", node.OpType(), " is deprecated in domain_version of ",
+                                 maxInclusiveVersion);
+        }
+
+        if (node_proto.input().empty() && node_proto.output().empty()) {
+          return ORT_MAKE_STATUS(ONNXRUNTIME, INVALID_GRAPH, "NodeProto (name: ", node_proto.name(), ", type: ", node.OpType(),
+                                 ") has zero input and zero output.");
+        }
+
+        for (const auto& attr : node_proto.attribute()) {
+          check_attribute(attr, ctx, lsc);
+        }
+
+        schema->Verify(node_proto);
+
+        if (node.op_ && node.op_->Deprecated()) {
+          return ORT_MAKE_STATUS(ONNXRUNTIME, FAIL, "Fatal error: ", node.OpType(), " is deprecated in opset ",
+                                 maxInclusiveVersion);
+        }
       } catch (const std::exception& ex) {
         return ORT_MAKE_STATUS(ONNXRUNTIME, INVALID_GRAPH, "This is an invalid model. Error in Node:", node_name, " : ", ex.what());
       }
 
-      auto maxInclusiveVersion = DomainToVersionMap().find(domain)->second;
-      node.op_ = schema_registry_->GetSchema(node.OpType(), maxInclusiveVersion, node.Domain());
-
-      if (node.op_ && node.op_->Deprecated()) {
-        node.op_ = nullptr;
-      }
-
       if (node.op_ && node.op_->HasFunction()) {
         auto onnx_function_proto = node.op_->GetFunction();
-        auto func_ptr = onnxruntime::make_unique<onnxruntime::FunctionImpl>(*this, node.Index(), *onnx_function_proto,
-            logger_);
-        function_container_.emplace_back(std::move(func_ptr));
+        function_container_.emplace_back(
+            onnxruntime::make_unique<onnxruntime::FunctionImpl>(*this, node.Index(), *onnx_function_proto, logger_));
         node.SetFunctionBody(*function_container_.back());
       }
 
       if (!node.op_) {
-        return Status(ONNXRUNTIME, FAIL, "Fatal error: " + node.OpType() + " is not a registered function/op");
+        return ORT_MAKE_STATUS(ONNXRUNTIME, FAIL, "Fatal error: ", node.OpType(), " is not a registered function/op");
       }
     }
 
@@ -2408,12 +2431,12 @@ void Graph::CleanUnusedInitializers() {
       // on the first call to Graph::Resolve we are removing unnecessary initializers that should be removed
       // from the model.
       // on later calls we are removing initializers that optimizations have made redundant.
-        if (num_resolves_ == 0) {
-          LOGS(logger_, WARNING) << "Removing initializer '"
-                                  << name << "'. It is not used by any node and should be removed from the model.";
-        } else {
-          LOGS(logger_, INFO) << "Removing initializer '" << name << "'. It is no longer used by any node.";
-        }
+      if (num_resolves_ == 0) {
+        LOGS(logger_, WARNING) << "Removing initializer '"
+                               << name << "'. It is not used by any node and should be removed from the model.";
+      } else {
+        LOGS(logger_, INFO) << "Removing initializer '" << name << "'. It is no longer used by any node.";
+      }
 
       erase_list.push_back(name);
     }
@@ -2619,7 +2642,7 @@ Status Graph::SetGraphInputsOutputs() {
                                 name + " must be either specified in graph inputs or graph initializers.");
                 }
               } else {
-                // If arg_input is of an initializer, we remove it from graph_inputs_excluding_initializers_ 
+                // If arg_input is of an initializer, we remove it from graph_inputs_excluding_initializers_
                 // whose initial content has both initializers and non-initializers.
                 auto input_pos = std::find(graph_inputs_excluding_initializers_.begin(),
                                            graph_inputs_excluding_initializers_.end(),

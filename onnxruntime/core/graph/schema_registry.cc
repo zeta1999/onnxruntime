@@ -97,10 +97,6 @@ common::Status OnnxRuntimeOpSchemaRegistry::RegisterOpSchemaInternal(ONNX_NAMESP
   return common::Status::OK();
 }
 
-// Return the schema with biggest version, which is not greater than specified
-// <op_set_version> in specified domain. The value of earliest_opset_where_unchanged
-// is also set to the earliest version preceding op_set_version where the operator
-// is known to be unchanged.
 void OnnxRuntimeOpSchemaRegistry::GetSchemaAndHistory(
     const std::string& key,
     const int op_set_version,
@@ -151,6 +147,7 @@ void OnnxRuntimeOpSchemaRegistry::GetSchemaAndHistory(
 }
 
 void SchemaRegistryManager::RegisterRegistry(std::shared_ptr<IOnnxRuntimeOpSchemaCollection> registry) {
+  //The new one is inserted at the front, however, the real search order in GetSchemaAndHistory function is from the end to the beginning
   registries.push_front(registry);
 }
 
