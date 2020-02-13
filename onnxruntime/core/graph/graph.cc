@@ -1793,6 +1793,8 @@ Status Graph::VerifyNodeAndOpMatch() {
     NodeProto node_proto;
     node.ToProto(node_proto);
     if (!node.Op()) {
+      //The following code is a replacement of onnx::check_node function. It searches the schema from schema_registry_
+      //based on op domain and version, verify it with the graph node, then assign it to node.op_.
       try {
         auto iter2 = domain_to_version_.find(domain);
         if (iter2 == domain_to_version_.end()) {
@@ -1802,7 +1804,7 @@ Status Graph::VerifyNodeAndOpMatch() {
           return ORT_MAKE_STATUS(ONNXRUNTIME, INVALID_GRAPH, "op type can't be empty");
         }
         auto maxInclusiveVersion = iter2->second;
-        node.op_ = schema_registry_->GetSchema(node.OpType(), maxInclusiveVersion, node.Domain());
+        node.op_ = schema_registry_->GetSchema(node.OpType(), maxInclusiveVersion, domain);
         const auto* schema = node.op_;
         if (!schema) {
           return ORT_MAKE_STATUS(ONNXRUNTIME, INVALID_GRAPH, "No Op registered for ", node.OpType(), " with domain_version of ", maxInclusiveVersion);
@@ -1824,10 +1826,6 @@ Status Graph::VerifyNodeAndOpMatch() {
 
         schema->Verify(node_proto);
 
-        if (node.op_ && node.op_->Deprecated()) {
-          return ORT_MAKE_STATUS(ONNXRUNTIME, FAIL, "Fatal error: ", node.OpType(), " is deprecated in opset ",
-                                 maxInclusiveVersion);
-        }
       } catch (const std::exception& ex) {
         return ORT_MAKE_STATUS(ONNXRUNTIME, INVALID_GRAPH, "This is an invalid model. Error in Node:", node_name, " : ", ex.what());
       }
